@@ -15,25 +15,29 @@ var pico8keys = [
   [83, 70, 69, 68, 9, 81]
 ];
 
+  pcart = 'c/cart.p8.png'
+  
 // Loads pico8 web player library and setups everything to run
 function PicoPlayer(element, cart, lib) {
   // fallback to bbs version of pico8 console
   if (!lib) {
-    lib = 'https://www.lexaloffle.com/play/pico8_0205c.js';
+  	lib = 'js/pico8_0207.js';
   }
-
+  
   // load element by ID
   if (typeof(element) == 'string') {
     element = document.getElementById(element);
   }
 
   // create canvas and add it into element
-  var canvas = document.createElement('canvas');
-  element.appendChild(canvas);
+  var canvas = document.getElementById('pcanvas');
+  /* element.appendChild(canvas); */
+
+  var cart_to_load = cart || pcart;
 
   // setup module to load card and point to our canvas
   Module = {
-    arguments: [cart],
+    arguments: [cart_to_load],
     canvas: canvas
   };
 

@@ -1,0 +1,1747 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-t">
+  <title>picopu - PICO-8 Web Player</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+  <style>
+    @font-face {
+      font-family: 'picofont';
+      src: url('font/pico-8.ttf') format('truetype');
+    }
+
+    :root {
+      --pico-black: #000000;
+      --pico-dark-blue: #1D2B53;
+      --pico-dark-purple: #7E2553;
+      --pico-dark-green: #008751;
+      --pico-brown: #AB5236;
+      --pico-dark-gray: #5F574F;
+      --pico-light-gray: #C2C3C7;
+      --pico-white: #FFF1E8;
+      --pico-red: #FF004D;
+      --pico-orange: #FFA300;
+      --pico-yellow: #FFEC27;
+      --pico-green: #00E436;
+      --pico-blue: #29ADFF;
+      --pico-indigo: #83769C;
+      --pico-pink: #FF77A8;
+      --pico-peach: #FFCCAA;
+      --unified-font-size: clamp(14px, 3vmin, 18px);
+    }
+
+    html,
+    body,
+    button,
+    input {
+      margin: 0;
+      padding: 0;
+      background: var(--pico-black);
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'picofont', monospace;
+      font-size: 120%;
+      color: var(--pico-white);
+      -webkit-tap-highlight-color: transparent;
+      line-height: 1.5;
+    }
+
+    #canvasWrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    #pico-player-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 20%;
+    }
+
+    @media (orientation: landscape) {
+      #pico-player-frame {
+        bottom: 0;
+      }
+    }
+
+    #controls {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 100vh;
+      background: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease-in-out;
+    }
+
+    #controls button {
+      position: absolute;
+      touch-action: none;
+      pointer-events: auto;
+      font-size: var(--unified-font-size);
+      border: 3px solid var(--pico-indigo);
+      color: var(--pico-light-gray);
+      background: transparent;
+      border-radius: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 17vmin;
+      height: 17vmin;
+      z-index: 10;
+      box-sizing: border-box;
+      transition: background 0.1s ease, color 0.1s ease, border-width 0.05s ease;
+      padding: 0;
+    }
+
+    #controls button:active,
+    #controls button.js-active {
+      border-width: 7px;
+    }
+
+    #gear.active,
+    #eye.active {
+      border-width: 3px;
+      border-style: dashed;
+    }
+
+    body.dragMode #controls button {
+      z-index: 20;
+      cursor: move;
+      border-color: var(--pico-light-gray);
+    }
+
+    .joysBtn {
+      overflow: hidden;
+    }
+
+    .joysBtn .joysThumb {
+      position: absolute;
+      width: 33%;
+      height: 33%;
+      border-radius: 0;
+      pointer-events: none;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transition: transform 0.05s linear;
+    }
+
+    #p1-joysBtn .joysThumb {
+      background-color: var(--pico-blue);
+    }
+
+    #p2-joysBtn .joysThumb {
+      background-color: var(--pico-indigo);
+    }
+
+    .resize-handle {
+      position: absolute;
+      width: 19px;
+      height: 19px;
+      background: var(--pico-light-gray);
+      border-radius: 0;
+      display: none;
+      z-index: 25;
+      touch-action: none;
+      pointer-events: auto;
+      bottom: -8.5px;
+      right: -8.5px;
+      cursor: nwse-resize;
+    }
+
+    body.dragMode .resize-handle {
+      display: block;
+    }
+
+    .snap-guide {
+      position: fixed;
+      background-color: var(--pico-blue);
+      z-index: 1000;
+      display: none;
+    }
+
+    .snap-guide.vertical {
+      width: 1px;
+      height: 100vh;
+      top: 0;
+    }
+
+    .snap-guide.horizontal {
+      height: 1px;
+      width: 100vw;
+      left: 0;
+    }
+
+    #trash {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 2vmin;
+      width: 10vmin;
+      height: 10vmin;
+      border-radius: 0;
+      background: rgba(95, 87, 79, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 40;
+      pointer-events: none;
+      border: 3px dashed var(--pico-light-gray);
+      font-size: 5vmin;
+      color: var(--pico-white);
+    }
+
+    #trash.over {
+      background: var(--pico-red);
+      border-color: var(--pico-white);
+    }
+
+    .removed {
+      display: none !important;
+    }
+
+    #resize-info {
+      position: fixed;
+      display: none;
+      z-index: 1001;
+      color: var(--pico-blue);
+      background: transparent;
+      font-size: var(--unified-font-size);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    #messageBox {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--pico-dark-purple);
+      color: var(--pico-white);
+      padding: 12px 24px;
+      border-radius: 0;
+      border: 3px solid var(--pico-light-gray);
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+      font-size: var(--unified-font-size);
+    }
+
+    #messageBox.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1002;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      align-items: center;
+      justify-content: center;
+    }
+
+    #layoutTemplateModal {
+      z-index: 1003;
+    }
+
+    .modal-content {
+      background-color: var(--pico-black);
+      color: var(--pico-light-gray);
+      border: 3px solid var(--pico-light-gray);
+      border-radius: 0;
+      position: relative;
+      font-size: var(--unified-font-size);
+      display: flex;
+      flex-direction: column;
+      width: 90vmin;
+      height: 90vmin;
+      max-width: 450px;
+      max-height: 450px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      font-weight: bold;
+      font-size: 1em;
+      color: var(--pico-light-gray);
+      padding: 15px;
+      text-align: center;
+      border-bottom: none;
+    }
+
+    .modal-close {
+      color: var(--pico-light-gray);
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      font-size: 1.5em;
+      line-height: 1;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s;
+    }
+
+    .modal-close:hover {
+      color: var(--pico-indigo);
+    }
+
+    .modal-body {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .modal-list {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .modal-list li {
+      padding: 12px 15px;
+      border: 3px solid var(--pico-light-gray);
+      background: transparent;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      border-radius: 0;
+      margin: 5px 0;
+    }
+
+    .modal-list li:hover {
+      background-color: var(--pico-dark-grey);
+    }
+
+    .tool-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 5px;
+      gap: 15px;
+    }
+
+    .tool-item span {
+      flex-shrink: 0;
+      width: 80px;
+      font-weight: bold;
+      transition: color 0.2s;
+    }
+
+    .tool-item .actions {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .tool-item input[type=number] {
+      width: 100%;
+      height: 40px;
+      background: var(--pico-black);
+      border: 3px solid var(--pico-light-gray);
+      color: var(--pico-light-gray);
+      font-family: 'picofont', monospace;
+      font-size: 1em;
+      text-align: center;
+      border-radius: 0;
+      -moz-appearance: textfield;
+      cursor: ew-resize;
+      user-select: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .tool-item input[type=number]:hover {
+      border-color: var(--pico-white);
+    }
+
+    .tool-item input[type=number]::-webkit-outer-spin-button,
+    .tool-item input[type=number]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .tool-item.zeroed span {
+      color: var(--pico-red);
+    }
+
+    .tool-item.zeroed input[type=number] {
+      border-color: var(--pico-red);
+      color: var(--pico-red);
+    }
+
+    .tool-item .actions button {
+      position: static;
+      width: 100%;
+      height: auto;
+      padding: 10px 12px;
+      font-size: 1em;
+      background: transparent;
+      color: var(--pico-light-gray);
+      border: 3px solid var(--pico-light-gray);
+      border-radius: 0;
+      transition: background-color 0.2s ease, transform 0.1s ease;
+    }
+
+    .tool-item .actions button:active {
+      transform: scale(0.98);
+    }
+
+    .tool-item .actions button:hover {
+      background-color: var(--pico-dark-gray);
+    }
+
+    #messageBox,
+    .modal-header,
+    .modal-list li,
+    .tool-item span,
+    .tool-item .actions button,
+    #cartStatus {
+      text-transform: uppercase;
+    }
+
+    #cartStatus {
+      padding: 10px 12px;
+      color: var(--pico-dark-green);
+      border: 3px solid var(--pico-light-gray);
+      border-radius: 0;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Main Player and UI Elements -->
+  <div id="canvasWrap"><iframe id="pico-player-frame"></iframe></div>
+  <div id="snap-guide-v" class="snap-guide vertical"></div>
+  <div id="snap-guide-h" class="snap-guide horizontal"></div>
+  <div id="resize-info"></div>
+
+  <!-- On-Screen Controls -->
+  <div id="controls">
+    <button id="pause">=<span class="resize-handle"></span></button>
+    <button id="gear">Ê<span class="resize-handle"></span></button>
+    <button id="toolsBtn">▤<span class="resize-handle"></span></button>
+    <button id="eye">☉<span class="resize-handle"></span></button>
+    <button data-p="0" data-k="2">⬆<span class="resize-handle"></span></button>
+    <button data-p="0" data-k="3">⬇<span class="resize-handle"></span></button>
+    <button data-p="0" data-k="0">⬅<span class="resize-handle"></span></button>
+    <button data-p="0" data-k="1">➡<span class="resize-handle"></span></button>
+    <button data-p="0" data-k="4">Î<span class="resize-handle"></span></button>
+    <button data-p="0" data-k="5">×<span class="resize-handle"></span></button>
+    <button data-combo="0-4+0-5">Î+×<span class="resize-handle"></span></button>
+    <button data-p="1" data-k="2">⬆2<span class="resize-handle"></span></button>
+    <button data-p="1" data-k="3">⬇2<span class="resize-handle"></span></button>
+    <button data-p="1" data-k="0">⬅2<span class="resize-handle"></span></button>
+    <button data-p="1" data-k="1">➡2<span class="resize-handle"></span></button>
+    <button data-p="1" data-k="4">Î2<span class="resize-handle"></span></button>
+    <button data-p="1" data-k="5">×2<span class="resize-handle"></span></button>
+    <button data-combo="1-4+1-5">Î+×2<span class="resize-handle"></span></button>
+    <button id="p1-joysBtn" class="joysBtn" data-p="0">
+      <div class="joysThumb"></div><span class="resize-handle"></span>
+    </button>
+    <button id="p2-joysBtn" class="joysBtn" data-p="1">
+      <div class="joysThumb"></div><span class="resize-handle"></span>
+    </button>
+  </div>
+
+  <!-- Helper UI -->
+  <div id="trash">🗑</div>
+  <input id="fileInput" type="file" accept=".json" style="display:none">
+  <input id="cartFileInput" type="file" accept=".p8.png,.png" style="display:none">
+  <div id="messageBox"></div>
+
+  <!-- Layout Templates Modal -->
+  <div id="layoutTemplateModal" class="modal">
+    <div class="modal-content"><span class="modal-close">❎</span>
+      <div class="modal-header">LAYOUT TEMPLATES</div>
+      <div class="modal-body">
+        <ul id="layoutTemplateList" class="modal-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tools Modal -->
+  <div id="toolsModal" class="modal">
+    <div class="modal-content">
+      <span class="modal-close">❎</span>
+      <div class="modal-header">TOOLS</div>
+      <div id="toolsModalContent" class="modal-body">
+        <div class="tool-item">
+          <span>OPACITY</span>
+          <input id="opacitySlider" type="number" min="0" max="100" value="100">
+        </div>
+        <div class="tool-item">
+          <span>VOLUME</span>
+          <input id="volumeSlider" type="number" min="0" max="100" value="100">
+        </div>
+        <div class="tool-item">
+          <span>CART</span>
+          <div class="actions">
+            <button id="modalFreezeBtn">FREEZE</button>
+            <button id="modalResetCartBtn">RESET</button>
+            <button id="modalLoadCartBtn">LOAD CART</button>
+            <div id="cartStatus">LOADED: <span id="loadedCartFileName">NONE</span></div>
+          </div>
+        </div>
+        <div class="tool-item">
+          <span>LAYOUT</span>
+          <div class="actions">
+            <button id="modalSaveLayoutBtn">SAVE</button>
+            <button id="modalLoadLayoutBtn">LOAD</button>
+            <button id="modalResetLayoutBtn">RESET</button>
+            <button id="modalLayoutTemplatesBtn">TEMPLATES</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>
+    eruda.init();
+  </script>
+  <script src="js/ccmd.js"></script>
+  <script>
+    /* --- Utilities --- */
+    function showToast(message, duration = 3000) {
+      const mb = document.getElementById('messageBox');
+      mb.textContent = message.toUpperCase();
+      mb.classList.add('show');
+      setTimeout(() => mb.classList.remove('show'), duration);
+    }
+    async function dataUrlToBlob(dataUrl) {
+      const response = await fetch(dataUrl);
+      return await response.blob();
+    }
+
+    /* --- PICO-8 Bridge --- */
+    window.pico8_api = {};
+    const playerFrame = document.getElementById('pico-player-frame');
+    const DEFAULT_CART = "c/cart.p8.png";
+
+    function loadCartInFrame(cartUrl) {
+      saveCartData();
+      const url = cartUrl || DEFAULT_CART;
+      playerFrame.src = `player.html?cart=${encodeURIComponent(url)}&t=${Date.now()}`;
+      loadCartData();
+    }
+
+    /* --- Cartridge Data Persistence --- */
+    function saveCartData() {
+      const cartName = sessionStorage.getItem("userLoadedCartName");
+      if (!cartName) return;
+      if (!window.pico8_api || !window.pico8_api.getModule) {
+        return;
+      }
+      const Module = window.pico8_api.getModule();
+      if (!Module || !Module.FS) return;
+      try {
+        const FS = Module.FS;
+        const cstorePath = '/pico-8/cstore';
+        let cartDataToSave = {};
+        if (FS.analyzePath(cstorePath).exists) {
+          const files = FS.readdir(cstorePath);
+          files.forEach(file => {
+            if (file !== '.' && file !== '..') {
+              const filePath = `${cstorePath}/${file}`;
+              const data = FS.readFile(filePath, {
+                encoding: 'binary'
+              });
+              const base64Data = btoa(String.fromCharCode.apply(null, data));
+              cartDataToSave[file] = base64Data;
+            }
+          });
+        }
+        if (Object.keys(cartDataToSave).length > 0) {
+          const storageKey = `pico8_cartdata_${cartName}`;
+          localStorage.setItem(storageKey, JSON.stringify(cartDataToSave));
+        }
+      } catch (e) {
+        // Silently fail if cart data cannot be read (e.g., game hasn't saved yet)
+      }
+    }
+
+    function loadCartData() {
+      const cartName = sessionStorage.getItem("userLoadedCartName");
+      if (!cartName) return;
+      const storageKey = `pico8_cartdata_${cartName}`;
+      const savedDataJSON = localStorage.getItem(storageKey);
+      if (!savedDataJSON) return;
+
+      const readyCheckInterval = setInterval(() => {
+        if (window.pico8_api && window.pico8_api.getModule) {
+          const Module = window.pico8_api.getModule();
+          if (Module && Module.FS) {
+            clearInterval(readyCheckInterval);
+            try {
+              const FS = Module.FS;
+              const cstorePath = '/pico-8/cstore';
+              const cartData = JSON.parse(savedDataJSON);
+              FS.mkdirTree(cstorePath);
+              for (const filename in cartData) {
+                const filePath = `${cstorePath}/${filename}`;
+                const base64Data = cartData[filename];
+                const binaryString = atob(base64Data);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                  bytes[i] = binaryString.charCodeAt(i);
+                }
+                FS.writeFile(filePath, bytes);
+              }
+            } catch (e) {
+              console.warn("Failed to restore cart data from localStorage.", e);
+            }
+          }
+        }
+      }, 100);
+    }
+    window.addEventListener('beforeunload', saveCartData);
+
+    /* --- Cartridge Boot Logic --- */
+    async function initialBoot() {
+      const userCartDataURL = sessionStorage.getItem("userLoadedCart");
+      const userCartName = sessionStorage.getItem("userLoadedCartName");
+      const cartFromUrl = new URL(location.href).searchParams.get("cart");
+      let cartToLoad = cartFromUrl;
+      let cartNameForLog = (cartFromUrl || "default").toUpperCase();
+
+      if (userCartName) {
+        document.getElementById('loadedCartFileName').textContent = userCartName;
+        cartNameForLog = userCartName;
+      }
+      if (userCartDataURL) {
+        try {
+          const blob = await dataUrlToBlob(userCartDataURL);
+          cartToLoad = URL.createObjectURL(blob);
+        } catch (e) {
+          console.warn("Failed to load stored cart from session storage.", e);
+          sessionStorage.clear();
+        }
+      }
+      loadCartInFrame(cartToLoad);
+      console.info(`Loaded cart: ${cartNameForLog}`);
+    }
+
+    /* --- Initialization --- */
+    window.addEventListener("DOMContentLoaded", () => {
+      setTimeout(() => {
+        document.getElementById('controls').style.opacity = 1;
+      }, 2000);
+      initialBoot().catch(err => console.error("Initial boot failed.", err));
+      applyCustomImages();
+    });
+
+    /* --- Custom Button Images --- */
+    function applyCustomImages() {
+      const elementsToSkin = document.querySelectorAll('#controls button, #trash');
+      elementsToSkin.forEach(el => {
+        if (el.classList.contains('joysBtn')) return;
+        let imageName = '';
+        if (el.id) {
+          imageName = el.id;
+        } else if (el.dataset.p && el.dataset.k) {
+          imageName = `p${el.dataset.p}-k${el.dataset.k}`;
+        } else if (el.dataset.combo) {
+          imageName = `combo-${el.dataset.combo.replace(/[+]/g, '_')}`;
+        }
+        if (imageName) {
+          const img = new Image();
+          img.src = `img/${imageName}.png`;
+          img.onload = () => {
+            const resizeHandle = el.querySelector('.resize-handle');
+            el.innerHTML = '';
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'contain';
+            img.style.pointerEvents = 'none';
+            el.appendChild(img);
+            if (resizeHandle) {
+              el.appendChild(resizeHandle);
+            }
+          };
+        }
+      });
+    }
+
+    /* --- Button Input Handlers --- */
+    function PicoPress(k, p) {
+      if (window.pico8_api.press) window.pico8_api.press(k, p);
+    }
+
+    function PicoRelease(k, p) {
+      if (window.pico8_api.release) window.pico8_api.release(k, p);
+    }
+
+    function pressCombo(combo, down) {
+      combo.split('+').forEach(k => {
+        const [p, kk] = k.split('-').map(Number);
+        down ? PicoPress(kk, p) : PicoRelease(kk, p);
+      });
+    }
+    document.querySelectorAll("button[data-p][data-k]").forEach(b => {
+      ["mousedown", "touchstart"].forEach(ev => b.addEventListener(ev, e => {
+        if (dragMode || resizeMode) return;
+        e.preventDefault();
+        b.classList.add('js-active');
+        PicoPress(+b.dataset.k, +b.dataset.p);
+      }));
+      ["mouseup", "touchend", "mouseleave", "touchcancel"].forEach(ev => b.addEventListener(ev, e => {
+        if (b.classList.contains('js-active')) {
+          e.preventDefault();
+          b.classList.remove('js-active');
+          PicoRelease(+b.dataset.k, +b.dataset.p);
+        }
+      }));
+    });
+    document.querySelectorAll("button[data-combo]").forEach(b => {
+      const combo = b.dataset.combo;
+      ["mousedown", "touchstart"].forEach(ev => b.addEventListener(ev, e => {
+        if (dragMode || resizeMode) return;
+        e.preventDefault();
+        b.classList.add('js-active');
+        pressCombo(combo, true);
+      }));
+      ["mouseup", "touchend", "mouseleave", "touchcancel"].forEach(ev => b.addEventListener(ev, e => {
+        if (b.classList.contains('js-active')) {
+          e.preventDefault();
+          b.classList.remove('js-active');
+          pressCombo(combo, false);
+        }
+      }));
+    });
+    document.getElementById("pause").addEventListener("click", () => {
+      if (dragMode || resizeMode) return;
+      if (window.pico8_api.gd) {
+        window.pico8_api.gd({
+          type: "keydown",
+          keyCode: 13
+        });
+        setTimeout(() => window.pico8_api.gd({
+          type: "keyup",
+          keyCode: 13
+        }), 100);
+      }
+    });
+
+    /* --- Joystick Logic (Multi-Touch Fixed) --- */
+    let activeJoystick = null;
+    let joystickTouchIdentifier = null;
+    let joystickStates = {
+      0: {
+        left: false,
+        right: false,
+        up: false,
+        down: false
+      },
+      1: {
+        left: false,
+        right: false,
+        up: false,
+        down: false
+      }
+    };
+    const analogKeyMap = {
+      left: 0,
+      right: 1,
+      up: 2,
+      down: 3
+    };
+
+    function updatePicoJoystickInput(newState, playerIndex) {
+      for (const dir in newState) {
+        if (newState[dir] && !joystickStates[playerIndex][dir]) {
+          PicoPress(analogKeyMap[dir], playerIndex);
+        } else if (!newState[dir] && joystickStates[playerIndex][dir]) {
+          PicoRelease(analogKeyMap[dir], playerIndex);
+        }
+      }
+      joystickStates[playerIndex] = newState;
+    }
+
+    function handleJoystickMove(e) {
+      if (!activeJoystick) return;
+      e.preventDefault();
+      const playerIndex = +activeJoystick.dataset.p;
+      const joysThumb = activeJoystick.querySelector('.joysThumb');
+      const rect = activeJoystick.getBoundingClientRect();
+
+      let touch = e;
+      if (e.touches) {
+        touch = Array.from(e.touches).find(t => t.identifier === joystickTouchIdentifier);
+      }
+      if (!touch) return;
+
+      const padRadius = rect.width / 2;
+      let dx = touch.clientX - (rect.left + padRadius);
+      let dy = touch.clientY - (rect.top + padRadius);
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > padRadius) {
+        dx = (dx / distance) * padRadius;
+        dy = (dy / distance) * padRadius;
+      }
+      joysThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      const threshold = padRadius * 0.3;
+      updatePicoJoystickInput({
+        left: dx < -threshold,
+        right: dx > threshold,
+        up: dy < -threshold,
+        down: dy > threshold
+      }, playerIndex);
+    }
+
+    function endJoystickMove(e) {
+      if (!activeJoystick) return;
+
+      if (e.changedTouches) {
+        const isOurTouchEnding = Array.from(e.changedTouches).some(t => t.identifier === joystickTouchIdentifier);
+        if (!isOurTouchEnding) {
+          return;
+        }
+      }
+
+      const playerIndex = +activeJoystick.dataset.p;
+      const joysThumb = activeJoystick.querySelector('.joysThumb');
+      window.removeEventListener('mousemove', handleJoystickMove);
+      window.removeEventListener('touchmove', handleJoystickMove);
+      window.removeEventListener('mouseup', endJoystickMove);
+      window.removeEventListener('touchend', endJoystickMove);
+      window.removeEventListener('mouseleave', endJoystickMove);
+      window.removeEventListener('touchcancel', endJoystickMove);
+      activeJoystick.classList.remove('js-active');
+      joysThumb.style.transform = 'translate(-50%, -50%)';
+      updatePicoJoystickInput({
+        left: false,
+        right: false,
+        up: false,
+        down: false
+      }, playerIndex);
+      activeJoystick = null;
+      joystickTouchIdentifier = null;
+    }
+
+    function startJoystickMove(e, padElement) {
+      if (dragMode || resizeMode || activeJoystick) return;
+      e.preventDefault();
+      e.stopPropagation();
+      activeJoystick = padElement;
+      if (e.changedTouches) {
+        joystickTouchIdentifier = e.changedTouches[0].identifier;
+      }
+      activeJoystick.classList.add('js-active');
+      window.addEventListener('mousemove', handleJoystickMove);
+      window.addEventListener('touchmove', handleJoystickMove, {
+        passive: false
+      });
+      window.addEventListener('mouseup', endJoystickMove);
+      window.addEventListener('touchend', endJoystickMove);
+      window.addEventListener('mouseleave', endJoystickMove);
+      window.addEventListener('touchcancel', endJoystickMove);
+      handleJoystickMove(e);
+    }
+    document.querySelectorAll('.joysBtn').forEach(pad => {
+      pad.addEventListener('mousedown', e => startJoystickMove(e, pad));
+      pad.addEventListener('touchstart', e => startJoystickMove(e, pad), {
+        passive: false
+      });
+    });
+
+    /* --- Tool Sliders Logic --- */
+    function updateSliderVisual(input) {
+      const min = parseFloat(input.min) || 0;
+      const max = parseFloat(input.max) || 100;
+      const value = parseFloat(input.value) || 0;
+      const percentage = ((value - min) / (max - min)) * 100;
+      const fillColor = input.closest('.tool-item.zeroed') ? 'var(--pico-red)' : 'var(--pico-dark-gray)';
+      input.style.background = `linear-gradient(to right, ${fillColor} ${percentage}%, var(--pico-black) ${percentage}%)`;
+    }
+
+    function updateInputBoxState(input) {
+      const toolItem = input.closest('.tool-item');
+      if (!toolItem) return;
+      toolItem.classList.toggle('zeroed', parseFloat(input.value) <= 0);
+    }
+    const opacityInput = document.getElementById("opacitySlider");
+    const volumeInput = document.getElementById("volumeSlider");
+
+    function setOpacity(v) {
+      document.querySelectorAll("#controls button").forEach(el => {
+        el.style.opacity = v / 100;
+      });
+    }
+    opacityInput.addEventListener("input", function() {
+      this.value = Math.max(0, Math.min(100, this.value));
+      setOpacity(this.value);
+      savePos();
+      updateInputBoxState(this);
+      updateSliderVisual(this);
+    });
+    volumeInput.addEventListener("input", function() {
+      this.value = Math.max(0, Math.min(100, this.value));
+      if (window.pico8_api.volume) window.pico8_api.volume(Math.round((this.value / 100) * 256));
+      savePos();
+      updateInputBoxState(this);
+      updateSliderVisual(this);
+    });
+
+    function makeInputSlidable(inputElement) {
+      let isDragging = false,
+        startX = 0,
+        startValue = 0;
+      const handleMove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        inputElement.value = Math.max(parseFloat(inputElement.min), Math.min(parseFloat(inputElement.max), Math.round(startValue + ((clientX - startX) * 0.5))));
+        inputElement.dispatchEvent(new Event('input', {
+          bubbles: true
+        }));
+      };
+      const handleEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.cursor = 'default';
+        window.removeEventListener('mousemove', handleMove);
+        window.removeEventListener('touchmove', handleMove);
+        window.removeEventListener('mouseup', handleEnd);
+        window.removeEventListener('touchend', handleEnd);
+      };
+      const handleStart = (e) => {
+        if (document.activeElement === inputElement) return;
+        isDragging = true;
+        startX = e.touches ? e.touches[0].clientX : e.clientX;
+        startValue = parseFloat(inputElement.value);
+        document.body.style.cursor = 'ew-resize';
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, {
+          passive: false
+        });
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchend', handleEnd);
+      };
+      inputElement.addEventListener('mousedown', handleStart);
+      inputElement.addEventListener('touchstart', handleStart, {
+        passive: true
+      });
+      inputElement.addEventListener('focus', () => {
+        inputElement.style.cursor = 'text';
+      });
+      inputElement.addEventListener('blur', () => {
+        inputElement.style.cursor = 'ew-resize';
+        inputElement.dispatchEvent(new Event('input', {
+          bubbles: true
+        }));
+      });
+    }
+    makeInputSlidable(opacityInput);
+    makeInputSlidable(volumeInput);
+
+    /* --- Cartridge Actions --- */
+    document.getElementById("modalResetCartBtn").addEventListener("click", () => {
+      saveCartData();
+      sessionStorage.removeItem("userLoadedCart");
+      sessionStorage.removeItem("userLoadedCartName");
+      document.getElementById('loadedCartFileName').textContent = 'NONE';
+      showToast("Resetting to default cart...");
+      loadCartInFrame(DEFAULT_CART);
+      console.info("Cart reset to default.");
+    });
+    const cartFileInput = document.getElementById('cartFileInput');
+    document.getElementById("modalLoadCartBtn").addEventListener("click", () => cartFileInput.click());
+    cartFileInput.addEventListener('change', async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          saveCartData();
+          const dataUrl = e.target.result;
+          const blob = await dataUrlToBlob(dataUrl);
+          const blobUrl = URL.createObjectURL(blob);
+          const upperCaseFileName = file.name.toUpperCase();
+          sessionStorage.setItem("userLoadedCart", dataUrl);
+          sessionStorage.setItem("userLoadedCartName", upperCaseFileName);
+          document.getElementById('loadedCartFileName').textContent = upperCaseFileName;
+          showToast(`Loading ${upperCaseFileName}...`);
+          loadCartInFrame(blobUrl);
+          console.info(`Loaded cart: ${upperCaseFileName}`);
+          cartFileInput.value = '';
+        } catch (err) {
+          console.error("Failed to load cart from file.", err);
+          showToast("Failed to load cart.", 5000);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    /* --- Default Layout Data --- */
+    const DEFAULT = {
+      "pause": {
+        "x": "2vmin",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "gear": {
+        "x": "calc(100vw - 14vmin)",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "toolsBtn": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "eye": {
+        "x": "16vmin",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-2": {
+        "x": "2vmin",
+        "y": "calc(100vh - 56vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-3": {
+        "x": "16vmin",
+        "y": "calc(100vh - 56vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-0": {
+        "x": "2vmin",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-1": {
+        "x": "16vmin",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-4": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-5": {
+        "x": "calc(100vw - 14vmin)",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "combo1": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 14vmin)",
+        "w": "26vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-2": {
+        "x": "2vmin",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-3": {
+        "x": "16vmin",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-0": {
+        "x": "2vmin",
+        "y": "calc(100vh - 14vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-1": {
+        "x": "16vmin",
+        "y": "calc(100vh - 14vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-4": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-5": {
+        "x": "calc(100vw - 14vmin)",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "combo0": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 56vmin)",
+        "w": "26vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "p1-joysBtn": {
+        "x": "30vmin",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "p2-joysBtn": {
+        "x": "30vmin",
+        "y": "calc(100vh - 14vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "opacity": "100",
+      "volume": "100"
+    };
+
+    /* --- Layout Management --- */
+    function getElementId(id) {
+      if (id.startsWith("combo")) return document.querySelector(`button[data-combo="${id==='combo0'?'0-4+0-5':'1-4+1-5'}"]`);
+      if (id.includes('-') && !id.includes('joys')) {
+        const [p, k] = id.split('-');
+        return document.querySelector(`button[data-p="${p}"][data-k="${k}"]`);
+      }
+      return document.getElementById(id);
+    }
+
+    function applyDefault() {
+      loadPosFromObject(DEFAULT);
+    }
+    const storageKey = "picoBtnPos";
+
+    function loadPosFromObject(data) {
+      try {
+        if (data.opacity != null) {
+          opacityInput.value = data.opacity;
+          setOpacity(data.opacity);
+          updateInputBoxState(opacityInput);
+          updateSliderVisual(opacityInput);
+        }
+        if (data.volume != null) {
+          volumeInput.value = data.volume;
+          if (window.pico8_api.volume) window.pico8_api.volume(Math.round((data.volume / 100) * 256));
+          updateInputBoxState(volumeInput);
+          updateSliderVisual(volumeInput);
+        }
+        document.querySelectorAll("#controls button").forEach(el => {
+          el.style.display = "none";
+          el.dataset.removed = "true";
+        });
+        Object.entries(data).forEach(([id, info]) => {
+          if (id === "opacity" || id === "volume") return;
+          const el = getElementId(id);
+          if (!el) return;
+          el.style.position = "absolute";
+          if (info.x != null) el.style.left = info.x;
+          if (info.y != null) el.style.top = info.y;
+          if (info.w) el.style.width = info.w;
+          if (info.h) el.style.height = info.h;
+          el.style.opacity = (info.opacity != null) ? info.opacity / 100 : 1;
+          if (info.removed) {
+            el.style.display = "none";
+            el.dataset.removed = "true";
+          } else {
+            el.style.display = 'flex';
+            delete el.dataset.removed;
+          }
+        });
+      } catch (e) {
+        console.error("Error applying layout from object.", e);
+        showToast("Error applying layout.", 5000);
+      }
+    }
+
+    function loadPos() {
+      try {
+        const item = localStorage.getItem(storageKey);
+        if (!item) return false;
+        loadPosFromObject(JSON.parse(item || "{}"));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function savePos() {
+      const data = {};
+      document.querySelectorAll("#controls button").forEach(b => {
+        const key = b.id || (b.dataset.combo ? (b.dataset.combo === "0-4+0-5" ? "combo0" : "combo1") : `${b.dataset.p}-${b.dataset.k}`);
+        if (!key) return;
+        data[key] = {
+          x: b.style.left || "",
+          y: b.style.top || "",
+          w: b.style.width || "",
+          h: b.style.height || "",
+          opacity: b.style.opacity ? Math.round(parseFloat(b.style.opacity) * 100) : 100,
+          removed: !!b.dataset.removed
+        };
+      });
+      data.opacity = opacityInput.value;
+      data.volume = volumeInput.value;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    }
+
+    function saveToFile() {
+      downloadJSON(JSON.parse(localStorage.getItem(storageKey) || '{}'), `pico-layout-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`);
+      showToast("Layout saved to file.");
+      console.info("Layout saved to file.");
+    }
+
+    function downloadJSON(obj, filename) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], {
+        type: "application/json"
+      }));
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    const fileInput = document.getElementById('fileInput');
+
+    function loadFromFile() {
+      fileInput.value = '';
+      fileInput.click();
+    }
+    fileInput.addEventListener('change', ev => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const obj = JSON.parse(e.target.result);
+          loadPosFromObject(obj);
+          savePos();
+          showToast("Layout loaded!");
+          console.info("Layout loaded from file.");
+        } catch (err) {
+          console.error("Failed to load layout from file: invalid JSON.", err);
+          showToast("Failed to load layout: invalid JSON", 5000);
+        }
+      };
+      reader.readAsText(f);
+    });
+
+    /* --- Drag and Resize Logic --- */
+    let dragMode = false,
+      resizeMode = false,
+      dragged = null,
+      resized = null,
+      draggingOverTrash = false;
+    const SNAP_THRESHOLD = 6;
+    const vGuide = document.getElementById('snap-guide-v');
+    const hGuide = document.getElementById('snap-guide-h');
+
+    function checkAndApplyDragSnapping(movingEl, newLeft, newTop) {
+      let snappedX = false,
+        snappedY = false;
+      const movingRect = movingEl.getBoundingClientRect();
+      const finalPos = {
+        x: newLeft,
+        y: newTop
+      };
+      const movingPoints = {
+        left: newLeft,
+        top: newTop,
+        cx: newLeft + movingRect.width / 2,
+        cy: newTop + movingRect.height / 2,
+        right: newLeft + movingRect.width,
+        bottom: newTop + movingRect.height
+      };
+      const targets = Array.from(document.querySelectorAll("#controls button")).filter(el => el !== movingEl && el.style.display !== 'none' && el.style.visibility !== 'hidden');
+      for (const target of targets) {
+        const tRect = target.getBoundingClientRect();
+        const targetPoints = {
+          left: tRect.left,
+          top: tRect.top,
+          cx: tRect.left + tRect.width / 2,
+          cy: tRect.top + tRect.height / 2,
+          right: tRect.right,
+          bottom: tRect.bottom
+        };
+        if (!snappedX) {
+          if (Math.abs(movingPoints.left - targetPoints.left) < SNAP_THRESHOLD) {
+            finalPos.x = targetPoints.left;
+            vGuide.style.left = targetPoints.left + 'px';
+            snappedX = true;
+          } else if (Math.abs(movingPoints.cx - targetPoints.cx) < SNAP_THRESHOLD) {
+            finalPos.x = targetPoints.cx - movingRect.width / 2;
+            vGuide.style.left = targetPoints.cx + 'px';
+            snappedX = true;
+          } else if (Math.abs(movingPoints.right - targetPoints.right) < SNAP_THRESHOLD) {
+            finalPos.x = targetPoints.right - movingRect.width;
+            vGuide.style.left = targetPoints.right + 'px';
+            snappedX = true;
+          }
+        }
+        if (!snappedY) {
+          if (Math.abs(movingPoints.top - targetPoints.top) < SNAP_THRESHOLD) {
+            finalPos.y = targetPoints.top;
+            hGuide.style.top = targetPoints.top + 'px';
+            snappedY = true;
+          } else if (Math.abs(movingPoints.cy - targetPoints.cy) < SNAP_THRESHOLD) {
+            finalPos.y = targetPoints.cy - movingRect.height / 2;
+            hGuide.style.top = targetPoints.cy + 'px';
+            snappedY = true;
+          } else if (Math.abs(movingPoints.bottom - targetPoints.bottom) < SNAP_THRESHOLD) {
+            finalPos.y = targetPoints.bottom - movingRect.height;
+            hGuide.style.top = targetPoints.bottom + 'px';
+            snappedY = true;
+          }
+        }
+        if (snappedX && snappedY) break;
+      }
+      vGuide.style.display = snappedX ? 'block' : 'none';
+      hGuide.style.display = snappedY ? 'block' : 'none';
+      return finalPos;
+    }
+
+    function checkAndApplyResizeSnapping(resizingEl, newW, newH) {
+      let snappedX = false,
+        snappedY = false;
+      const resizingRect = resizingEl.getBoundingClientRect();
+      const finalSize = {
+        w: newW,
+        h: newH
+      };
+      const newRight = resizingRect.left + newW;
+      const newBottom = resizingRect.top + newH;
+      const targets = Array.from(document.querySelectorAll("#controls button")).filter(el => el !== resizingEl && el.style.display !== 'none' && el.style.visibility !== 'hidden');
+      for (const target of targets) {
+        const tRect = target.getBoundingClientRect();
+        const targetPoints = {
+          left: tRect.left,
+          top: tRect.top,
+          cx: tRect.left + tRect.width / 2,
+          cy: tRect.top + tRect.height / 2,
+          right: tRect.right,
+          bottom: tRect.bottom
+        };
+        if (!snappedX) {
+          if (Math.abs(newRight - targetPoints.left) < SNAP_THRESHOLD) {
+            finalSize.w = targetPoints.left - resizingRect.left;
+            vGuide.style.left = targetPoints.left + 'px';
+            snappedX = true;
+          } else if (Math.abs(newRight - targetPoints.cx) < SNAP_THRESHOLD) {
+            finalSize.w = targetPoints.cx - resizingRect.left;
+            vGuide.style.left = targetPoints.cx + 'px';
+            snappedX = true;
+          } else if (Math.abs(newRight - targetPoints.right) < SNAP_THRESHOLD) {
+            finalSize.w = targetPoints.right - resizingRect.left;
+            vGuide.style.left = targetPoints.right + 'px';
+            snappedX = true;
+          }
+        }
+        if (!snappedY) {
+          if (Math.abs(newBottom - targetPoints.top) < SNAP_THRESHOLD) {
+            finalSize.h = targetPoints.top - resizingRect.top;
+            hGuide.style.top = targetPoints.top + 'px';
+            snappedY = true;
+          } else if (Math.abs(newBottom - targetPoints.cy) < SNAP_THRESHOLD) {
+            finalSize.h = targetPoints.cy - resizingRect.top;
+            hGuide.style.top = targetPoints.cy + 'px';
+            snappedY = true;
+          } else if (Math.abs(newBottom - targetPoints.bottom) < SNAP_THRESHOLD) {
+            finalSize.h = targetPoints.bottom - resizingRect.top;
+            hGuide.style.top = targetPoints.bottom + 'px';
+            snappedY = true;
+          }
+        }
+        if (snappedX && snappedY) break;
+      }
+      vGuide.style.display = snappedX ? 'block' : 'none';
+      hGuide.style.display = snappedY ? 'block' : 'none';
+      return finalSize;
+    }
+
+    function hideAllGuides() {
+      vGuide.style.display = 'none';
+      hGuide.style.display = 'none';
+      document.getElementById('resize-info').style.display = 'none';
+    }
+
+    function clampPosition(el) {
+      const rect = el.getBoundingClientRect(),
+        vw = window.innerWidth,
+        vh = window.innerHeight;
+      if (rect.left < 0) el.style.left = "0px";
+      if (rect.top < 0) el.style.top = "0px";
+      if (rect.right > vw) el.style.left = (vw - rect.width) + "px";
+      if (rect.bottom > vh) el.style.top = (vh - rect.height) + "px";
+    }
+
+    function dragStart(e, el) {
+      if (e.target.classList.contains('resize-handle')) return;
+      dragged = el;
+      const touch = e.touches ? e.touches[0] : e,
+        rect = el.getBoundingClientRect();
+      el.dataset.offX = touch.clientX - rect.left;
+      el.dataset.offY = touch.clientY - rect.top;
+      document.getElementById('trash').style.display = "flex";
+    }
+
+    function dragMove(e) {
+      if (!dragged) return;
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const newLeft = touch.clientX - parseFloat(dragged.dataset.offX);
+      const newTop = touch.clientY - parseFloat(dragged.dataset.offY);
+      const snappedPos = checkAndApplyDragSnapping(dragged, newLeft, newTop);
+      dragged.style.left = snappedPos.x + "px";
+      dragged.style.top = snappedPos.y + "px";
+      clampPosition(dragged);
+      const trash = document.getElementById('trash'),
+        tRect = trash.getBoundingClientRect(),
+        dRect = dragged.getBoundingClientRect();
+      const overlap = !(dRect.right < tRect.left || dRect.left > tRect.right || dRect.bottom < tRect.top || dRect.top > tRect.bottom);
+      trash.classList.toggle('over', overlap);
+      draggingOverTrash = overlap;
+    }
+
+    function dragEnd() {
+      if (dragged) {
+        if (draggingOverTrash) {
+          dragged.style.display = "none";
+          dragged.dataset.removed = "true";
+        }
+        clampPosition(dragged);
+        savePos();
+        dragged = null;
+      }
+      document.getElementById('trash').style.display = "none";
+      document.getElementById('trash').classList.remove('over');
+      draggingOverTrash = false;
+      hideAllGuides();
+    }
+
+    function resizeStart(e, handle) {
+      e.stopPropagation();
+      e.preventDefault();
+      resizeMode = true;
+      resized = handle.parentElement;
+      const touch = e.touches ? e.touches[0] : e;
+      Object.assign(resized.dataset, {
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startW: resized.offsetWidth,
+        startH: resized.offsetHeight
+      });
+    }
+
+    function resizeMove(e) {
+      if (!resized) return;
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const dx = touch.clientX - parseFloat(resized.dataset.startX);
+      const dy = touch.clientY - parseFloat(resized.dataset.startY);
+      let proposedW = parseFloat(resized.dataset.startW) + dx;
+      let proposedH = parseFloat(resized.dataset.startH) + dy;
+      const resizeInfo = document.getElementById('resize-info');
+      let snappedToRatio = false;
+      const ASPECT_SNAP_THRESHOLD = 0.05;
+      const ratio = proposedW / proposedH;
+      if (Math.abs(ratio - 1.0) < ASPECT_SNAP_THRESHOLD) {
+        proposedH = proposedW;
+        snappedToRatio = "1:1";
+      } else if (Math.abs(ratio - 2.0) < ASPECT_SNAP_THRESHOLD) {
+        proposedH = proposedW / 2;
+        snappedToRatio = "2:1";
+      } else if (Math.abs(ratio - 0.5) < ASPECT_SNAP_THRESHOLD) {
+        proposedH = proposedW * 2;
+        snappedToRatio = "1:2";
+      }
+      if (snappedToRatio) {
+        const rect = resized.getBoundingClientRect();
+        resizeInfo.style.display = 'block';
+        resizeInfo.textContent = snappedToRatio;
+        resizeInfo.style.left = `${rect.left + (rect.width / 2) - (resizeInfo.offsetWidth / 2)}px`;
+        resizeInfo.style.top = `${rect.top - 22}px`;
+        resized.style.borderColor = 'var(--pico-blue)';
+      } else {
+        resizeInfo.style.display = 'none';
+        resized.style.borderColor = '';
+      }
+      const snappedSize = checkAndApplyResizeSnapping(resized, proposedW, proposedH);
+      resized.style.width = Math.max(40, snappedSize.w) + "px";
+      resized.style.height = Math.max(40, snappedSize.h) + "px";
+      clampPosition(resized);
+    }
+
+    function resizeEnd() {
+      if (resized) {
+        resized.style.borderColor = '';
+        clampPosition(resized);
+        savePos();
+        resized = null;
+        resizeMode = false;
+      }
+      hideAllGuides();
+    }
+
+    /* --- UI Modes and Modals --- */
+    const gearBtn = document.getElementById("gear");
+    const eyeBtn = document.getElementById("eye");
+    const toolsBtn = document.getElementById("toolsBtn");
+    const toolsModal = document.getElementById('toolsModal');
+
+    function closeToolsModal() {
+      if (toolsModal.style.display !== 'none') {
+        toolsModal.style.display = 'none';
+      }
+    }
+
+    function setGearState(on) {
+      dragMode = !!on;
+      document.body.classList.toggle("dragMode", dragMode);
+      gearBtn.classList.toggle("active", dragMode);
+      const show = dragMode ? "flex" : "none";
+      toolsBtn.style.display = show;
+      eyeBtn.style.display = show;
+      if (!on) {
+        hideAllGuides();
+        document.getElementById('layoutTemplateModal').style.display = 'none';
+        closeToolsModal();
+      }
+    }
+    gearBtn.addEventListener("click", (ev) => {
+      setGearState(!dragMode);
+      ev.stopPropagation();
+    });
+    document.addEventListener("pointerdown", (ev) => {
+      if (!dragMode || dragged || resized || ev.target.closest('#controls button, .modal')) return;
+      setGearState(false);
+    });
+    eyeBtn.addEventListener("click", () => {
+      const isHiding = !eyeBtn.classList.contains('active');
+      eyeBtn.classList.toggle('active');
+      document.querySelectorAll("#controls button").forEach(el => {
+        if (el.id !== 'eye') {
+          el.style.visibility = isHiding ? 'hidden' : 'visible';
+        }
+      });
+    });
+    const layoutTemplates = [{
+      name: "clean",
+      file: "clean.json"
+    }, {
+      name: "minimal",
+      file: "minimal.json"
+    }, {
+      name: "onehand",
+      file: "onehand.json"
+    }, {
+      name: "joystick",
+      file: "joystick.json"
+    }, {
+      name: "none",
+      file: "none1.json"
+    }, {
+      name: "none",
+      file: "none2.json"
+    }, {
+      name: "none",
+      file: "none3.json"
+    }];
+    const layoutModal = document.getElementById('layoutTemplateModal');
+    const layoutList = document.getElementById('layoutTemplateList');
+    async function loadTemplate(fileName, templateName) {
+      try {
+        const response = await fetch(`layout/${fileName}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        loadPosFromObject(data);
+        savePos();
+        showToast(`Layout '${templateName}' loaded!`);
+        console.info(`Layout template loaded: '${templateName}'`);
+        layoutModal.style.display = 'none';
+      } catch (e) {
+        console.error(`Failed to load layout template '${fileName}'.`, e);
+        showToast(`Error loading ${templateName}: Check console (F12).`, 5000);
+      }
+    }
+
+    function openTemplateModal() {
+      layoutList.innerHTML = '';
+      layoutTemplates.forEach(template => {
+        const li = document.createElement('li');
+        li.textContent = template.name.toUpperCase();
+        li.onclick = () => loadTemplate(template.file, template.name);
+        layoutList.appendChild(li);
+      });
+      layoutModal.style.display = 'flex';
+    }
+    toolsBtn.addEventListener("click", () => {
+      toolsModal.style.display = 'flex';
+    });
+    let isGameFrozen = false;
+    const freezeBtn = document.getElementById("modalFreezeBtn");
+    freezeBtn.addEventListener("click", () => {
+      if (window.pico8_api.pause) {
+        window.pico8_api.pause();
+        isGameFrozen = !isGameFrozen;
+        freezeBtn.textContent = isGameFrozen ? "UNFREEZE" : "FREEZE";
+      } else {
+        showToast("Freeze function not available.", 3000);
+      }
+    });
+    document.getElementById("modalSaveLayoutBtn").addEventListener("click", saveToFile);
+    document.getElementById("modalLoadLayoutBtn").addEventListener("click", loadFromFile);
+    document.getElementById("modalResetLayoutBtn").addEventListener("click", () => {
+      localStorage.removeItem(storageKey);
+      applyDefault();
+      savePos();
+      showToast("Layout reset to default.");
+      console.info("Layout reset to default.");
+    });
+    document.getElementById("modalLayoutTemplatesBtn").addEventListener("click", openTemplateModal);
+    document.querySelectorAll('.modal').forEach(modal => {
+      const closeBtn = modal.querySelector('.modal-close');
+      if (modal.id === 'toolsModal') {
+        closeBtn.addEventListener('click', closeToolsModal);
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            closeToolsModal();
+          }
+        });
+      } else {
+        closeBtn.addEventListener('click', () => {
+          modal.style.display = 'none';
+        });
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.style.display = 'none';
+          }
+        });
+      }
+    });
+
+    /* --- Final Setup --- */
+    function initLayout() {
+      if (!loadPos()) {
+        applyDefault();
+        savePos();
+      }
+      setGearState(false);
+      document.querySelectorAll('.tool-item input[type=number]').forEach(input => {
+        updateInputBoxState(input);
+        updateSliderVisual(input);
+      });
+    }
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && dragMode) setGearState(false);
+    });
+    initLayout();
+    document.querySelectorAll("#controls button").forEach(el => {
+      el.addEventListener("mousedown", e => {
+        if (dragMode && !e.target.classList.contains('resize-handle')) {
+          dragStart(e, el);
+          e.stopPropagation();
+        }
+      });
+      el.addEventListener("touchstart", e => {
+        if (dragMode && !e.target.classList.contains('resize-handle')) {
+          dragStart(e, el);
+          e.stopPropagation();
+        }
+      }, {
+        passive: false
+      });
+    });
+    document.querySelectorAll(".resize-handle").forEach(handle => {
+      handle.addEventListener("mousedown", e => {
+        if (dragMode) resizeStart(e, handle);
+      });
+      handle.addEventListener("touchstart", e => {
+        if (dragMode) resizeStart(e, handle);
+      }, {
+        passive: false
+      });
+    });
+    window.addEventListener("mousemove", e => {
+      if (dragged) dragMove(e);
+      if (resized) resizeMove(e);
+    });
+    window.addEventListener("touchmove", e => {
+      if (dragged) dragMove(e);
+      if (resized) resizeMove(e);
+    }, {
+      passive: false
+    });
+    window.addEventListener("mouseup", () => {
+      dragEnd();
+      resizeEnd();
+    });
+    window.addEventListener("touchend", () => {
+      dragEnd();
+      resizeEnd();
+    });
+  </script>
+</body>
+
+</html>

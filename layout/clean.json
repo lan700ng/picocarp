@@ -1,0 +1,164 @@
+{
+  "pause": {
+    "x": "2vmin",
+    "y": "calc(100vh - 70vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "gear": {
+    "x": "calc(-14vmin + 100vw)",
+    "y": "calc(100vh - 70vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "toolsBtn": {
+    "x": "calc(-28vmin + 100vw)",
+    "y": "calc(100vh - 70vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "eye": {
+    "x": "16vmin",
+    "y": "calc(100vh - 70vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "0-2": {
+    "x": "2vmin",
+    "y": "calc(100vh - 56vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "0-3": {
+    "x": "16vmin",
+    "y": "calc(100vh - 56vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "0-0": {
+    "x": "2vmin",
+    "y": "calc(100vh - 42vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "0-1": {
+    "x": "16vmin",
+    "y": "calc(100vh - 42vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "0-4": {
+    "x": "calc(-28vmin + 100vw)",
+    "y": "calc(100vh - 42vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "0-5": {
+    "x": "calc(-14vmin + 100vw)",
+    "y": "calc(100vh - 42vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "combo0": {
+    "x": "calc(-28vmin + 100vw)",
+    "y": "calc(100vh - 56vmin)",
+    "w": "26vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "1-2": {
+    "x": "2vmin",
+    "y": "calc(100vh - 28vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "1-3": {
+    "x": "16vmin",
+    "y": "calc(100vh - 28vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "1-0": {
+    "x": "2vmin",
+    "y": "calc(100vh - 14vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "1-1": {
+    "x": "16vmin",
+    "y": "calc(100vh - 14vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "1-4": {
+    "x": "calc(-28vmin + 100vw)",
+    "y": "calc(100vh - 28vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "1-5": {
+    "x": "calc(-14vmin + 100vw)",
+    "y": "calc(100vh - 28vmin)",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "combo1": {
+    "x": "calc(-28vmin + 100vw)",
+    "y": "calc(100vh - 14vmin)",
+    "w": "26vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": false
+  },
+  "p1-joysBtn": {
+    "x": "212.941px",
+    "y": "1.32968px",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": true
+  },
+  "p2-joysBtn": {
+    "x": "206.275px",
+    "y": "22.2733px",
+    "w": "12vmin",
+    "h": "12vmin",
+    "opacity": 100,
+    "removed": true
+  },
+  "opacity": "100",
+  "volume": "100"
+}

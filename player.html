@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PICO-8 Player Instance</title>
+  <style>
+    body, html { margin: 0; padding: 0; overflow: hidden; }
+    canvas { width: 100vw; height: 100vh; object-fit: contain; image-rendering: pixelated; image-rendering: crisp-edges; }
+  </style>
+</head>
+<body>
+  <canvas id="pcanvas"></canvas>
+  <script src="js/picoplayer.js"></script>
+  <script>
+    // This script runs inside the iframe
+    function gd(evt) {
+      if (window.Module && Module.canvas) {
+        Module.canvas.dispatchEvent(new KeyboardEvent(evt.type, {
+          keyCode: evt.keyCode,
+          which: evt.keyCode,
+          bubbles: true
+        }));
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URL(location.href).searchParams;
+      const cartToLoad = params.get("cart");
+      const canvas = document.getElementById('pcanvas');
+
+      // --- BUGFIX PATCH START ---
+      // This patch corrects mouse/touch coordinates for the PICO-8 canvas when it is
+      // scaled using `object-fit: contain`, which adds letterboxing or pillarboxing.
+      // The PICO-8 engine calculates mouse position using `event.clientX - canvas.getBoundingClientRect().left`,
+      // which is incorrect when the canvas element's aspect ratio doesn't match the game's.
+      // We intercept `getBoundingClientRect` to return the dimensions of the *actual rendered game area*,
+      // so the engine's existing calculations will work correctly.
+      const patchCanvasMouseCoords = () => {
+        // Avoid patching more than once.
+        if (canvas.getBoundingClientRect.isPatched) return;
+
+        const originalGetBoundingClientRect = canvas.getBoundingClientRect.bind(canvas);
+
+        canvas.getBoundingClientRect = function() {
+          const rect = originalGetBoundingClientRect();
+
+          // If canvas intrinsic dimensions aren't set yet, return the original rect.
+          if (!canvas.width || !canvas.height) {
+            return rect;
+          }
+
+          const canvasAspectRatio = canvas.width / canvas.height;
+          const rectAspectRatio = rect.width / rect.height;
+
+          // If aspect ratios are very close, no significant letterboxing is present.
+          if (Math.abs(rectAspectRatio - canvasAspectRatio) < 0.01) {
+            return rect;
+          }
+
+          let renderWidth, renderHeight, x, y;
+
+          if (rectAspectRatio > canvasAspectRatio) {
+            // Pillarboxed (bars on left/right)
+            renderHeight = rect.height;
+            renderWidth = renderHeight * canvasAspectRatio;
+            x = rect.left + (rect.width - renderWidth) / 2;
+            y = rect.top;
+          } else {
+            // Letterboxed (bars on top/bottom)
+            renderWidth = rect.width;
+            renderHeight = renderWidth / canvasAspectRatio;
+            x = rect.left;
+            y = rect.top + (rect.height - renderHeight) / 2;
+          }
+
+          // Return a new, corrected object that looks like a DOMRect.
+          return Object.freeze({
+            left: x,
+            top: y,
+            right: x + renderWidth,
+            bottom: y + renderHeight,
+            x: x,
+            y: y,
+            width: renderWidth,
+            height: renderHeight,
+          });
+        };
+        canvas.getBoundingClientRect.isPatched = true;
+      };
+
+      // The PICO-8 engine sets the canvas width/height attributes after it loads.
+      // We must wait for that before applying the patch. A MutationObserver is the
+      // most reliable way to detect this change.
+      const observer = new MutationObserver((mutationsList, obs) => {
+        for (const mutation of mutationsList) {
+          if (mutation.type === 'attributes' && (mutation.attributeName === 'width' || mutation.attributeName === 'height')) {
+            // Once the canvas has valid dimensions, apply the patch and stop observing.
+            if (canvas.width > 0 && canvas.height > 0) {
+              patchCanvasMouseCoords();
+              obs.disconnect();
+              return;
+            }
+          }
+        }
+      });
+      observer.observe(canvas, { attributes: true });
+      // --- BUGFIX PATCH END ---
+      
+      PicoPlayer('pcanvas', cartToLoad);
+
+      // Expose all necessary control functions to the parent window
+      window.parent.pico8_api = {
+          press: PicoPress,
+          release: PicoRelease,
+          volume: PicoVolume,
+          mute: PicoMute,
+          pause: PicoPause, // This is the "freeze" function
+          reset: PicoReset,
+          getModule: () => window.Module,
+          gd: gd 
+      };
+    });
+  </script>
+</body>
+</html>
