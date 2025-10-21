@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PICO-8 Player Instance</title>
+  <title>picocarp player instance</title>
   <style>
     body, html { margin: 0; padding: 0; overflow: hidden; }
     canvas { width: 100vw; height: 100vh; object-fit: contain; image-rendering: pixelated; image-rendering: crisp-edges; }
@@ -27,13 +27,6 @@
       const cartToLoad = params.get("cart");
       const canvas = document.getElementById('pcanvas');
 
-      // --- BUGFIX PATCH START ---
-      // This patch corrects mouse/touch coordinates for the PICO-8 canvas when it is
-      // scaled using `object-fit: contain`, which adds letterboxing or pillarboxing.
-      // The PICO-8 engine calculates mouse position using `event.clientX - canvas.getBoundingClientRect().left`,
-      // which is incorrect when the canvas element's aspect ratio doesn't match the game's.
-      // We intercept `getBoundingClientRect` to return the dimensions of the *actual rendered game area*,
-      // so the engine's existing calculations will work correctly.
       const patchCanvasMouseCoords = () => {
         // Avoid patching more than once.
         if (canvas.getBoundingClientRect.isPatched) return;
@@ -87,9 +80,6 @@
         canvas.getBoundingClientRect.isPatched = true;
       };
 
-      // The PICO-8 engine sets the canvas width/height attributes after it loads.
-      // We must wait for that before applying the patch. A MutationObserver is the
-      // most reliable way to detect this change.
       const observer = new MutationObserver((mutationsList, obs) => {
         for (const mutation of mutationsList) {
           if (mutation.type === 'attributes' && (mutation.attributeName === 'width' || mutation.attributeName === 'height')) {
@@ -103,7 +93,6 @@
         }
       });
       observer.observe(canvas, { attributes: true });
-      // --- BUGFIX PATCH END ---
       
       PicoPlayer('pcanvas', cartToLoad);
 
