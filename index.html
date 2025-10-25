@@ -601,11 +601,6 @@
       </div>
     </div>
   </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>
-    eruda.init();
-  </script>
   <script src="js/ccmd.js"></script>
   <script>
     /* --- Utilities --- */
@@ -620,7 +615,6 @@
       return await response.blob();
     }
     
-    // Robust binary-to-datastr-and-back functions
     function u8ToDataUrl(u8) {
         return new Promise((resolve) => {
             const blob = new Blob([u8]);
@@ -683,6 +677,7 @@
       if (!cartName) return;
       const storageKey = `pico8_cartdata_${cartName}`;
       const savedDataJSON = localStorage.getItem(storageKey);
+      
       if (!savedDataJSON) return;
 
       const readyCheckInterval = setInterval(() => {
@@ -743,12 +738,10 @@
                 sessionStorage.removeItem("userLoadedCartName");
             }
         } else {
-            // We ensure a name is set so that data saving can work immediately.
             cartToLoad = DEFAULT_CART;
             cartName = "DEFAULT CART";
         }
         
-        // This is the critical step that was missing for the default cart.
         sessionStorage.setItem("userLoadedCartName", cartName);
         document.getElementById('loadedCartFileName').textContent = cartName;
         
@@ -759,6 +752,9 @@
     function startGameSequence() {
       initialBoot().catch(err => console.error("Initial boot failed.", err));
       document.getElementById('controls').style.opacity = 1;
+      
+      // THE FIX: Start a periodic auto-save timer to prevent the race condition on page unload.
+      setInterval(saveCartData, 5000); // Save every 5 seconds.
     }
 
     function setAppHeight() {
@@ -1032,6 +1028,7 @@
       sessionStorage.removeItem("userLoadedCartName");
       document.getElementById('loadedCartFileName').textContent = 'DEFAULT CART';
       showToast("Resetting to default cart...");
+      sessionStorage.setItem("userLoadedCartName", "DEFAULT CART");
       loadCartInFrame(DEFAULT_CART);
       console.info("Cart reset to default.");
     });
