@@ -448,18 +448,56 @@
       background-color: var(--pico-black);
       color: var(--pico-white);
       z-index: 9999;
-      cursor: pointer;
       opacity: 1;
       display: none; 
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       transition: opacity 0.5s ease-in-out;
     }
-    #start-button {
-      padding: 20px 40px;
-      border: 3px solid var(--pico-white);
-      font-size: clamp(20px, 4vmin, 28px);
-      text-transform: uppercase;
+
+    #start-modal-content {
+        background-color: var(--pico-black);
+        border: 3px solid var(--pico-white);
+        display: flex;
+        flex-direction: column;
+        width: 80vmin;
+        height: 80vmin;
+        max-width: 400px;
+        max-height: 400px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        padding: 20px;
+        box-sizing: border-box;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+    }
+    #start-modal-header {
+        font-size: clamp(20px, 4vmin, 28px);
+        text-transform: uppercase;
+        text-align: center;
+        color: var(--pico-white);
+        padding-bottom: 10px;
+    }
+    #start-modal-body {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        align-items: center;
+        gap: 15px;
+    }
+    #start-default-button, #load-cart-button {
+        padding: 20px 0;
+        width: 80%;
+        border: 3px solid var(--pico-white);
+        font-size: clamp(20px, 4vmin, 28px);
+        text-transform: uppercase;
+        cursor: pointer;
+        text-align: center;
+        transition: background-color 0.2s ease;
+    }
+    #start-default-button:hover, #load-cart-button:hover {
+        background-color: var(--pico-dark-gray);
     }
   </style>
 </head>
@@ -467,7 +505,13 @@
 <body>
 
   <div id="start-overlay">
-    <div id="start-button">CLICK TO START</div>
+    <div id="start-modal-content">
+        <div id="start-modal-header">CHOOSE OPTION TO START</div>
+        <div id="start-modal-body">
+            <div id="start-default-button">DEFAULT CART</div>
+            <div id="load-cart-button">LOAD CART</div>
+        </div>
+    </div>
   </div>
 
   <div id="canvasWrap"><iframe id="pico-player-frame"></iframe></div>
@@ -568,6 +612,15 @@
       const response = await fetch(dataUrl);
       return await response.blob();
     }
+    // FIX: Robust Uint8Array to Base64 conversion
+    function uint8ArrayToBase64(bytes) {
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
 
     /* --- PICO-8 Bridge --- */
     window.pico8_api = {};
@@ -598,7 +651,8 @@
             if (file !== '.' && file !== '..') {
               const filePath = `${cstorePath}/${file}`;
               const data = FS.readFile(filePath, { encoding: 'binary' });
-              const base64Data = btoa(String.fromCharCode.apply(null, data));
+              // FIX: Use robust base64 conversion
+              const base64Data = uint8ArrayToBase64(data);
               cartDataToSave[file] = base64Data;
             }
           });
@@ -607,7 +661,10 @@
           const storageKey = `pico8_cartdata_${cartName}`;
           localStorage.setItem(storageKey, JSON.stringify(cartDataToSave));
         }
-      } catch (e) {}
+      } catch (e) {
+        // FIX: Log potential errors instead of swallowing them
+        console.error("Failed to save cart data to localStorage.", e);
+      }
     }
 
     function loadCartData() {
@@ -639,13 +696,20 @@
                 FS.writeFile(filePath, bytes);
               }
             } catch (e) {
-              console.warn("Failed to restore cart data from localStorage.", e);
+              console.error("Failed to restore cart data from localStorage.", e);
             }
           }
         }
       }, 100);
     }
+    // FIX: Add more reliable save triggers
     window.addEventListener('beforeunload', saveCartData);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            saveCartData();
+        }
+    });
+
 
     /* --- Cartridge Boot Logic --- */
     async function initialBoot() {
@@ -691,18 +755,28 @@
       initLayout();
 
       const startOverlay = document.getElementById('start-overlay');
+      const startDefaultBtn = document.getElementById('start-default-button');
+      const loadCartBtn = document.getElementById('load-cart-button');
+      
+      const hideOverlayAndStart = () => {
+          sessionStorage.setItem('hasStarted', 'true');
+          startOverlay.style.opacity = '0';
+          setTimeout(() => {
+              startOverlay.style.display = 'none';
+              startGameSequence();
+          }, 500);
+      };
+
       if (sessionStorage.getItem('hasStarted') === 'true') {
         startGameSequence();
       } else {
         startOverlay.style.display = 'flex';
-        startOverlay.addEventListener('click', () => {
-          sessionStorage.setItem('hasStarted', 'true');
-          startOverlay.style.opacity = '0';
-          setTimeout(() => {
-            startOverlay.style.display = 'none';
-            startGameSequence();
-          }, 500);
-        }, { once: true });
+        
+        startDefaultBtn.addEventListener('click', hideOverlayAndStart, { once: true });
+        
+        loadCartBtn.addEventListener('click', () => {
+            document.getElementById('cartFileInput').click();
+        });
       }
     });
 
@@ -949,6 +1023,18 @@
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
+          // FIX: Integrate with new start screen flow
+          const startOverlay = document.getElementById('start-overlay');
+          if (startOverlay.style.display === 'flex') {
+              sessionStorage.setItem('hasStarted', 'true');
+              startOverlay.style.opacity = '0';
+              setTimeout(() => {
+                  startOverlay.style.display = 'none';
+                  // Controls are faded in by startGameSequence
+                  document.getElementById('controls').style.opacity = 1;
+              }, 500);
+          }
+
           saveCartData();
           const dataUrl = e.target.result;
           const blob = await dataUrlToBlob(dataUrl);
@@ -957,7 +1043,7 @@
           sessionStorage.setItem("userLoadedCart", dataUrl);
           sessionStorage.setItem("userLoadedCartName", upperCaseFileName);
           document.getElementById('loadedCartFileName').textContent = upperCaseFileName;
-          showToast(`Loading ${upperCaseFileName}...`);
+          showToast(`LOADED ${upperCaseFileName}`);
           loadCartInFrame(blobUrl);
           console.info(`Loaded cart: ${upperCaseFileName}`);
           cartFileInput.value = '';
@@ -988,7 +1074,6 @@
           if (!el) return;
           el.style.position = "absolute";
 
-          // --- FIX: On-the-fly vh correction ---
           let correctedY = info.y;
           if (correctedY && correctedY.includes('vh')) {
               correctedY = correctedY.replace(/(\d+)vh/g, 'calc(var(--vh, 1vh) * $1)');
@@ -1193,7 +1278,8 @@
     function closeToolsModal() { if (toolsModal.style.display !== 'none') { toolsModal.style.display = 'none'; } }
     function setGearState(on) {
       dragMode = !!on; document.body.classList.toggle("dragMode", dragMode); gearBtn.classList.toggle("active", dragMode);
-      const show = dragMode ? "flex" : "none"; toolsBtn.style.display = show; eyeBtn.style.display = show;
+      // FIX: Only toggle toolsBtn, not eyeBtn
+      toolsBtn.style.display = dragMode ? "flex" : "none";
       if (!on) { hideAllGuides(); document.getElementById('layoutTemplateModal').style.display = 'none'; closeToolsModal(); }
     }
     gearBtn.addEventListener("click", (ev) => { setGearState(!dragMode); ev.stopPropagation(); });
