@@ -645,14 +645,11 @@
       try {
         Module.pico8_fs_sync();
         
-        setTimeout(() => {
-            const fs_base64 = Module.pico8_fs_save();
-            if (fs_base64) {
-              const storageKey = `pico8_cartdata_${cartName}`;
-              localStorage.setItem(storageKey, fs_base64);
-            }
-        }, 100);
-
+        const fs_base64 = Module.pico8_fs_save();
+        if (fs_base64) {
+          const storageKey = `pico8_cartdata_${cartName}`;
+          localStorage.setItem(storageKey, fs_base64);
+        }
       } catch (e) {
         console.error("Failed to save cart data.", e);
       }
