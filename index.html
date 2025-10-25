@@ -40,8 +40,8 @@
       margin: 0;
       padding: 0;
       background: var(--pico-black);
-      height: 100vh; /* Original CSS is preserved */
-      height: calc(var(--vh, 1vh) * 100); /* FIX: Apply custom vh */
+      height: 100vh;
+      height: calc(var(--vh, 1vh) * 100);
       overflow: hidden;
       font-family: 'picofont', monospace;
       font-size: 120%;
@@ -81,7 +81,7 @@
       top: 0;
       right: 0;
       bottom: 0;
-      height: 100vh; 
+      height: 100vh;
       height: calc(var(--vh, 1vh) * 100);
       background: transparent;
       user-select: none;
@@ -179,7 +179,7 @@
 
     .snap-guide.vertical {
       width: 1px;
-      height: 100vh; 
+      height: 100vh;
       height: calc(var(--vh, 1vh) * 100);
       top: 0;
     }
@@ -332,7 +332,7 @@
       border: 3px solid var(--pico-white);
       background: transparent;
       cursor: pointer;
-      transition: background-color 0.2s ease, transform 0.1s ease; 
+      transition: background-color 0.2s ease, transform 0.1s ease;
       border-radius: 0;
       margin: 5px 0;
     }
@@ -343,7 +343,8 @@
 
     .modal-list li:active {
       transform: scale(0.98);
-	}
+    }
+
     .tool-item {
       display: flex;
       align-items: center;
@@ -438,7 +439,7 @@
       border-radius: 0;
       text-align: center;
     }
-    
+
     #start-overlay {
       position: fixed;
       top: 0;
@@ -449,70 +450,74 @@
       color: var(--pico-white);
       z-index: 9999;
       opacity: 1;
-      display: none; 
+      display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       transition: opacity 0.5s ease-in-out;
     }
 
-    /* Start Screen Modal Styling */
     #start-modal-content {
-        background-color: var(--pico-black);
-        border: 3px solid var(--pico-white);
-        display: flex;
-        flex-direction: column;
-        width: 80vmin;
-        height: 80vmin;
-        max-width: 400px;
-        max-height: 400px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-        padding: 20px;
-        box-sizing: border-box;
-        justify-content: center;
-        align-items: center;
-        gap: 20px;
+      background-color: var(--pico-black);
+      border: 3px solid var(--pico-white);
+      display: flex;
+      flex-direction: column;
+      width: 80vmin;
+      height: 80vmin;
+      max-width: 400px;
+      max-height: 400px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      padding: 20px;
+      box-sizing: border-box;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
     }
+
     #start-modal-header {
-        font-size: clamp(20px, 4vmin, 28px);
-        text-transform: uppercase;
-        text-align: center;
-        color: var(--pico-white);
-        padding-bottom: 10px;
+      font-size: clamp(20px, 4vmin, 28px);
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--pico-white);
+      padding-bottom: 10px;
     }
+
     #start-modal-body {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        align-items: center;
-        gap: 15px;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      align-items: center;
+      gap: 15px;
     }
-    #start-default-button, #load-cart-button {
-        padding: 20px 0;
-        width: 80%;
-        border: 3px solid var(--pico-white);
-        font-size: clamp(20px, 4vmin, 28px);
-        text-transform: uppercase;
-        cursor: pointer;
-        text-align: center;
-        transition: background-color 0.2s ease;
+
+    #start-default-button,
+    #load-cart-button {
+      padding: 20px 0;
+      width: 80%;
+      border: 3px solid var(--pico-white);
+      font-size: clamp(20px, 4vmin, 28px);
+      text-transform: uppercase;
+      cursor: pointer;
+      text-align: center;
+      transition: background-color 0.2s ease;
     }
-    #start-default-button:hover, #load-cart-button:hover {
-        background-color: var(--pico-dark-gray);
+
+    #start-default-button:hover,
+    #load-cart-button:hover {
+      background-color: var(--pico-dark-gray);
     }
   </style>
 </head>
 
 <body>
 
-  <!-- Start Screen Modal -->
   <div id="start-overlay">
     <div id="start-modal-content">
-        <div id="start-modal-header">CHOOSE OPTION TO START</div>
-        <div id="start-modal-body">
-            <div id="start-default-button">DEFAULT CART</div>
-            <div id="load-cart-button">LOAD CART</div>
-        </div>
+      <div id="start-modal-header">CHOOSE OPTION TO START</div>
+      <div id="start-modal-body">
+        <div id="start-default-button">DEFAULT CART</div>
+        <div id="load-cart-button">LOAD CART</div>
+      </div>
     </div>
   </div>
 
@@ -596,7 +601,7 @@
       </div>
     </div>
   </div>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
   <script>
     eruda.init();
@@ -615,7 +620,7 @@
       return await response.blob();
     }
     
-    // CRITICAL FIX: Robust binary-to-datastr-and-back functions
+    // Robust binary-to-datastr-and-back functions
     function u8ToDataUrl(u8) {
         return new Promise((resolve) => {
             const blob = new Blob([u8]);
@@ -660,7 +665,6 @@
             if (file !== '.' && file !== '..') {
               const filePath = `${cstorePath}/${file}`;
               const data = FS.readFile(filePath, { encoding: 'binary' });
-              // CRITICAL FIX: Use robust data URL conversion
               cartDataToSave[file] = await u8ToDataUrl(data);
             }
           }
@@ -694,7 +698,6 @@
                 FS.mkdirTree(cstorePath);
                 for (const filename in cartData) {
                   const filePath = `${cstorePath}/${filename}`;
-                  // CRITICAL FIX: Use robust data URL conversion
                   const bytes = await dataUrlToU8(cartData[filename]);
                   FS.writeFile(filePath, bytes);
                 }
@@ -717,27 +720,40 @@
 
     /* --- Cartridge Boot Logic --- */
     async function initialBoot() {
-      const userCartDataURL = sessionStorage.getItem("userLoadedCart");
-      const userCartName = sessionStorage.getItem("userLoadedCartName");
-      const cartFromUrl = new URL(location.href).searchParams.get("cart");
-      let cartToLoad = cartFromUrl;
-      let cartNameForLog = (cartFromUrl || "default").toUpperCase();
+        let cartToLoad;
+        let cartName;
 
-      if (userCartName) {
-        document.getElementById('loadedCartFileName').textContent = userCartName;
-        cartNameForLog = userCartName;
-      }
-      if (userCartDataURL) {
-        try {
-          const blob = await dataUrlToBlob(userCartDataURL);
-          cartToLoad = URL.createObjectURL(blob);
-        } catch (e) {
-          console.warn("Failed to load stored cart from session storage.", e);
-          sessionStorage.clear();
+        const cartFromUrl = new URL(location.href).searchParams.get("cart");
+        const userCartDataURL = sessionStorage.getItem("userLoadedCart");
+        const userCartName = sessionStorage.getItem("userLoadedCartName");
+
+        if (cartFromUrl) {
+            cartToLoad = cartFromUrl;
+            cartName = cartFromUrl.split('/').pop().toUpperCase();
+        } else if (userCartName && userCartDataURL) {
+            cartName = userCartName;
+            try {
+                const blob = await dataUrlToBlob(userCartDataURL);
+                cartToLoad = URL.createObjectURL(blob);
+            } catch (e) {
+                console.warn("Failed to load stored cart, falling back to default.", e);
+                cartToLoad = DEFAULT_CART;
+                cartName = "DEFAULT CART";
+                sessionStorage.removeItem("userLoadedCart");
+                sessionStorage.removeItem("userLoadedCartName");
+            }
+        } else {
+            // We ensure a name is set so that data saving can work immediately.
+            cartToLoad = DEFAULT_CART;
+            cartName = "DEFAULT CART";
         }
-      }
-      loadCartInFrame(cartToLoad);
-      console.info(`Loaded cart: ${cartNameForLog}`);
+        
+        // This is the critical step that was missing for the default cart.
+        sessionStorage.setItem("userLoadedCartName", cartName);
+        document.getElementById('loadedCartFileName').textContent = cartName;
+        
+        console.info(`Loading cart: ${cartName}`);
+        loadCartInFrame(cartToLoad);
     }
 
     function startGameSequence() {
