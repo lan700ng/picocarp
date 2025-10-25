@@ -601,6 +601,11 @@
       </div>
     </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>
+    eruda.init();
+  </script>
   <script src="js/ccmd.js"></script>
   <script>
     /* --- Utilities --- */
@@ -636,19 +641,22 @@
     const DEFAULT_CART = "c/cart.p8.png";
 
     function loadCartInFrame(cartUrl) {
-      saveCartData();
       const url = cartUrl || DEFAULT_CART;
       playerFrame.src = `player.html?cart=${encodeURIComponent(url)}&t=${Date.now()}`;
-      loadCartData();
     }
 
     /* --- Cartridge Data Persistence --- */
     async function saveCartData() {
+      if (!window.pico8_api || !window.pico8_api.press || !window.pico8_api.getModule) {
+        return;
+      }
+      
       const cartName = sessionStorage.getItem("userLoadedCartName");
       if (!cartName) return;
-      if (!window.pico8_api || !window.pico8_api.getModule) { return; }
+
       const Module = window.pico8_api.getModule();
       if (!Module || !Module.FS) return;
+
       try {
         const FS = Module.FS;
         const cstorePath = '/pico-8/cstore';
@@ -679,30 +687,23 @@
       const savedDataJSON = localStorage.getItem(storageKey);
       
       if (!savedDataJSON) return;
-
-      const readyCheckInterval = setInterval(() => {
-        if (window.pico8_api && window.pico8_api.getModule) {
-          const Module = window.pico8_api.getModule();
-          if (Module && Module.FS) {
-            clearInterval(readyCheckInterval);
-            (async () => {
-              try {
-                const FS = Module.FS;
-                const cstorePath = '/pico-8/cstore';
-                const cartData = JSON.parse(savedDataJSON);
-                FS.mkdirTree(cstorePath);
-                for (const filename in cartData) {
-                  const filePath = `${cstorePath}/${filename}`;
-                  const bytes = await dataUrlToU8(cartData[filename]);
-                  FS.writeFile(filePath, bytes);
-                }
-              } catch (e) {
-                console.error("Failed to restore cart data from localStorage.", e);
-              }
-            })();
+      
+      const Module = window.pico8_api.getModule();
+      (async () => {
+        try {
+          const FS = Module.FS;
+          const cstorePath = '/pico-8/cstore';
+          const cartData = JSON.parse(savedDataJSON);
+          FS.mkdirTree(cstorePath);
+          for (const filename in cartData) {
+            const filePath = `${cstorePath}/${filename}`;
+            const bytes = await dataUrlToU8(cartData[filename]);
+            FS.writeFile(filePath, bytes);
           }
+        } catch (e) {
+          console.error("Failed to restore cart data from localStorage.", e);
         }
-      }, 100);
+      })();
     }
 
     window.addEventListener('beforeunload', saveCartData);
@@ -753,7 +754,7 @@
       initialBoot().catch(err => console.error("Initial boot failed.", err));
       document.getElementById('controls').style.opacity = 1;
       
-      setInterval(saveCartData, 5000); // Save every 5 seconds.
+      setInterval(saveCartData, 5000);
     }
 
     function setAppHeight() {
@@ -768,6 +769,18 @@
 
       applyCustomImages();
       initLayout();
+      
+      playerFrame.onload = () => {
+        const readyCheckInterval = setInterval(() => {
+            if (window.pico8_api && window.pico8_api.getModule) {
+                const Module = window.pico8_api.getModule();
+                if (Module && Module.FS) {
+                    clearInterval(readyCheckInterval);
+                    loadCartData();
+                }
+            }
+        }, 100);
+      };
 
       const startOverlay = document.getElementById('start-overlay');
       const startDefaultBtn = document.getElementById('start-default-button');
@@ -1045,7 +1058,7 @@
               startOverlay.style.opacity = '0';
               setTimeout(() => {
                   startOverlay.style.display = 'none';
-                  document.getElementById('controls').style.opacity = 1;
+                  startGameSequence();
               }, 500);
           }
 
