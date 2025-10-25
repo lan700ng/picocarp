@@ -20,5 +20,5 @@
 ### Credits:
 
 - Original code: [pico-player](https://github.com/egordorichev/pico-player)
-- Default cart: [Pico Dino](https://www.lexaloffle.com/bbs/?pid=85303)
+- Default cart: [Picoris 2](https://www.lexaloffle.com/bbs/?tid=41733)
 - Font: [source](https://www.lexaloffle.com/bbs/?tid=3760)
