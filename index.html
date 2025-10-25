@@ -456,6 +456,7 @@
       transition: opacity 0.5s ease-in-out;
     }
 
+    /* Start Screen Modal Styling */
     #start-modal-content {
         background-color: var(--pico-black);
         border: 3px solid var(--pico-white);
@@ -504,6 +505,7 @@
 
 <body>
 
+  <!-- Start Screen Modal -->
   <div id="start-overlay">
     <div id="start-modal-content">
         <div id="start-modal-header">CHOOSE OPTION TO START</div>
@@ -612,15 +614,22 @@
       const response = await fetch(dataUrl);
       return await response.blob();
     }
-    // FIX: Robust Uint8Array to Base64 conversion
-    function uint8ArrayToBase64(bytes) {
-        let binary = '';
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return window.btoa(binary);
+    
+    // CRITICAL FIX: Robust binary-to-datastr-and-back functions
+    function u8ToDataUrl(u8) {
+        return new Promise((resolve) => {
+            const blob = new Blob([u8]);
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(blob);
+        });
     }
+    async function dataUrlToU8(dataUrl) {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        return new Uint8Array(await blob.arrayBuffer());
+    }
+
 
     /* --- PICO-8 Bridge --- */
     window.pico8_api = {};
@@ -635,7 +644,7 @@
     }
 
     /* --- Cartridge Data Persistence --- */
-    function saveCartData() {
+    async function saveCartData() {
       const cartName = sessionStorage.getItem("userLoadedCartName");
       if (!cartName) return;
       if (!window.pico8_api || !window.pico8_api.getModule) { return; }
@@ -647,22 +656,20 @@
         let cartDataToSave = {};
         if (FS.analyzePath(cstorePath).exists) {
           const files = FS.readdir(cstorePath);
-          files.forEach(file => {
+          for (const file of files) {
             if (file !== '.' && file !== '..') {
               const filePath = `${cstorePath}/${file}`;
               const data = FS.readFile(filePath, { encoding: 'binary' });
-              // FIX: Use robust base64 conversion
-              const base64Data = uint8ArrayToBase64(data);
-              cartDataToSave[file] = base64Data;
+              // CRITICAL FIX: Use robust data URL conversion
+              cartDataToSave[file] = await u8ToDataUrl(data);
             }
-          });
+          }
         }
         if (Object.keys(cartDataToSave).length > 0) {
           const storageKey = `pico8_cartdata_${cartName}`;
           localStorage.setItem(storageKey, JSON.stringify(cartDataToSave));
         }
       } catch (e) {
-        // FIX: Log potential errors instead of swallowing them
         console.error("Failed to save cart data to localStorage.", e);
       }
     }
@@ -679,30 +686,27 @@
           const Module = window.pico8_api.getModule();
           if (Module && Module.FS) {
             clearInterval(readyCheckInterval);
-            try {
-              const FS = Module.FS;
-              const cstorePath = '/pico-8/cstore';
-              const cartData = JSON.parse(savedDataJSON);
-              FS.mkdirTree(cstorePath);
-              for (const filename in cartData) {
-                const filePath = `${cstorePath}/${filename}`;
-                const base64Data = cartData[filename];
-                const binaryString = atob(base64Data);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                  bytes[i] = binaryString.charCodeAt(i);
+            (async () => {
+              try {
+                const FS = Module.FS;
+                const cstorePath = '/pico-8/cstore';
+                const cartData = JSON.parse(savedDataJSON);
+                FS.mkdirTree(cstorePath);
+                for (const filename in cartData) {
+                  const filePath = `${cstorePath}/${filename}`;
+                  // CRITICAL FIX: Use robust data URL conversion
+                  const bytes = await dataUrlToU8(cartData[filename]);
+                  FS.writeFile(filePath, bytes);
                 }
-                FS.writeFile(filePath, bytes);
+              } catch (e) {
+                console.error("Failed to restore cart data from localStorage.", e);
               }
-            } catch (e) {
-              console.error("Failed to restore cart data from localStorage.", e);
-            }
+            })();
           }
         }
       }, 100);
     }
-    // FIX: Add more reliable save triggers
+
     window.addEventListener('beforeunload', saveCartData);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
@@ -1023,14 +1027,12 @@
       const reader = new FileReader();
       reader.onload = async (e) => {
         try {
-          // FIX: Integrate with new start screen flow
           const startOverlay = document.getElementById('start-overlay');
           if (startOverlay.style.display === 'flex') {
               sessionStorage.setItem('hasStarted', 'true');
               startOverlay.style.opacity = '0';
               setTimeout(() => {
                   startOverlay.style.display = 'none';
-                  // Controls are faded in by startGameSequence
                   document.getElementById('controls').style.opacity = 1;
               }, 500);
           }
@@ -1278,7 +1280,6 @@
     function closeToolsModal() { if (toolsModal.style.display !== 'none') { toolsModal.style.display = 'none'; } }
     function setGearState(on) {
       dragMode = !!on; document.body.classList.toggle("dragMode", dragMode); gearBtn.classList.toggle("active", dragMode);
-      // FIX: Only toggle toolsBtn, not eyeBtn
       toolsBtn.style.display = dragMode ? "flex" : "none";
       if (!on) { hideAllGuides(); document.getElementById('layoutTemplateModal').style.display = 'none'; closeToolsModal(); }
     }
