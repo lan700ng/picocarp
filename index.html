@@ -3,19 +3,6 @@
 
 <head>
   <meta charset="UTF-8">
-  <!-- =================================================================================== -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for (let registration of registrations) {
-          registration.unregister();
-          console.log('Rogue service worker unregistered.');
-        }
-      });
-    }
-  </script>
-  <!-- =================================================================================== -->
-
   <link rel="icon" type="image/png" sizes="32×32" href="img/icon.png">
   <meta property="og:image" content="https://raw.githubusercontent.com/lan700ng/picocarp/refs/heads/master/img/cvr.png">
   <title>picocarp - PICO-8 Web Player</title>
@@ -632,21 +619,6 @@
       const response = await fetch(dataUrl);
       return await response.blob();
     }
-    
-    function u8ToDataUrl(u8) {
-        return new Promise((resolve) => {
-            const blob = new Blob([u8]);
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.readAsDataURL(blob);
-        });
-    }
-    async function dataUrlToU8(dataUrl) {
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        return new Uint8Array(await blob.arrayBuffer());
-    }
-
 
     /* --- PICO-8 Bridge --- */
     window.pico8_api = {};
@@ -659,7 +631,7 @@
     }
 
     /* --- Cartridge Data Persistence --- */
-    async function saveCartData() {
+    function saveCartData() {
       if (!window.pico8_api || !window.pico8_api.press || !window.pico8_api.getModule) {
         return;
       }
@@ -668,55 +640,41 @@
       if (!cartName) return;
 
       const Module = window.pico8_api.getModule();
-      if (!Module || !Module.FS) return;
+      if (!Module || !Module.pico8_fs_save || !Module.pico8_fs_sync) return;
 
       try {
-        const FS = Module.FS;
-        const cstorePath = '/pico-8/cstore';
-        let cartDataToSave = {};
-        if (FS.analyzePath(cstorePath).exists) {
-          const files = FS.readdir(cstorePath);
-          for (const file of files) {
-            if (file !== '.' && file !== '..') {
-              const filePath = `${cstorePath}/${file}`;
-              const data = FS.readFile(filePath, { encoding: 'binary' });
-              cartDataToSave[file] = await u8ToDataUrl(data);
+        Module.pico8_fs_sync();
+        
+        setTimeout(() => {
+            const fs_base64 = Module.pico8_fs_save();
+            if (fs_base64) {
+              const storageKey = `pico8_cartdata_${cartName}`;
+              localStorage.setItem(storageKey, fs_base64);
             }
-          }
-        }
-        if (Object.keys(cartDataToSave).length > 0) {
-          const storageKey = `pico8_cartdata_${cartName}`;
-          localStorage.setItem(storageKey, JSON.stringify(cartDataToSave));
-        }
+        }, 100);
+
       } catch (e) {
-        console.error("Failed to save cart data to localStorage.", e);
+        console.error("Failed to save cart data.", e);
       }
     }
 
     function loadCartData() {
       const cartName = sessionStorage.getItem("userLoadedCartName");
       if (!cartName) return;
-      const storageKey = `pico8_cartdata_${cartName}`;
-      const savedDataJSON = localStorage.getItem(storageKey);
       
-      if (!savedDataJSON) return;
+      const storageKey = `pico8_cartdata_${cartName}`;
+      const fs_base64 = localStorage.getItem(storageKey);
+      
+      if (!fs_base64) return;
       
       const Module = window.pico8_api.getModule();
-      (async () => {
+      if (Module && Module.pico8_fs_load) {
         try {
-          const FS = Module.FS;
-          const cstorePath = '/pico-8/cstore';
-          const cartData = JSON.parse(savedDataJSON);
-          FS.mkdirTree(cstorePath);
-          for (const filename in cartData) {
-            const filePath = `${cstorePath}/${filename}`;
-            const bytes = await dataUrlToU8(cartData[filename]);
-            FS.writeFile(filePath, bytes);
-          }
-        } catch (e) {
-          console.error("Failed to restore cart data from localStorage.", e);
+            Module.pico8_fs_load(fs_base64);
+        } catch(e) {
+            console.error("Failed to restore cart data.", e);
         }
-      })();
+      }
     }
 
     window.addEventListener('beforeunload', saveCartData);
@@ -725,7 +683,6 @@
             saveCartData();
         }
     });
-
 
     /* --- Cartridge Boot Logic --- */
     async function initialBoot() {
@@ -785,11 +742,10 @@
       
       playerFrame.onload = () => {
         const readyCheckInterval = setInterval(() => {
-            if (playerFrame.contentWindow.pico8_api && playerFrame.contentWindow.pico8_api.getModule) {
+            if (playerFrame.contentWindow && playerFrame.contentWindow.pico8_api && playerFrame.contentWindow.pico8_api.getModule) {
                 const Module = playerFrame.contentWindow.pico8_api.getModule();
-                if (Module && Module.FS) {
+                if (Module && Module.FS && playerFrame.contentWindow.pico8_api.press) {
                     clearInterval(readyCheckInterval);
-                    // This is the global API bridge
                     window.pico8_api = playerFrame.contentWindow.pico8_api;
                     loadCartData();
                 }
