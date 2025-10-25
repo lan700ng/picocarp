@@ -753,7 +753,6 @@
       initialBoot().catch(err => console.error("Initial boot failed.", err));
       document.getElementById('controls').style.opacity = 1;
       
-      // THE FIX: Start a periodic auto-save timer to prevent the race condition on page unload.
       setInterval(saveCartData, 5000); // Save every 5 seconds.
     }
 
