@@ -3,6 +3,19 @@
 
 <head>
   <meta charset="UTF-8">
+  <!-- =================================================================================== -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('Rogue service worker unregistered.');
+        }
+      });
+    }
+  </script>
+  <!-- =================================================================================== -->
+
   <link rel="icon" type="image/png" sizes="32×32" href="img/icon.png">
   <meta property="og:image" content="https://raw.githubusercontent.com/lan700ng/picocarp/refs/heads/master/img/cvr.png">
   <title>picocarp - PICO-8 Web Player</title>
@@ -772,10 +785,12 @@
       
       playerFrame.onload = () => {
         const readyCheckInterval = setInterval(() => {
-            if (window.pico8_api && window.pico8_api.getModule) {
-                const Module = window.pico8_api.getModule();
+            if (playerFrame.contentWindow.pico8_api && playerFrame.contentWindow.pico8_api.getModule) {
+                const Module = playerFrame.contentWindow.pico8_api.getModule();
                 if (Module && Module.FS) {
                     clearInterval(readyCheckInterval);
+                    // This is the global API bridge
+                    window.pico8_api = playerFrame.contentWindow.pico8_api;
                     loadCartData();
                 }
             }
