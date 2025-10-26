@@ -614,36 +614,40 @@
       mb.classList.add('show');
       setTimeout(() => mb.classList.remove('show'), duration);
     }
-    async function dataUrlToBlob(dataUrl) {
-      const response = await fetch(dataUrl);
-      return await response.blob();
+    
+    function blobToDataURL(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.onerror = e => reject(reader.error);
+            reader.readAsDataURL(blob);
+        });
     }
 
     window.pico8_api = {};
     const playerFrame = document.getElementById('pico-player-frame');
-    const DEFAULT_CART = "c/cart.p8.png";
+    const DEFAULT_CART_PATH = "c/cart.p8.png";
+    const DEFAULT_CART_NAME = "DEFAULT CART";
 
     function loadCartInFrame(cartUrl) {
-      const url = cartUrl || DEFAULT_CART;
+      const url = cartUrl || DEFAULT_CART_PATH;
       playerFrame.src = `player.html?cart=${encodeURIComponent(url)}&t=${Date.now()}`;
     }
 
     function saveCartData() {
-        if (!window.pico8_api || !window.pico8_api.getModule) {
-            return;
-        }
+        if (!window.pico8_api || !window.pico8_api.getModule) return;
+        
         const Module = window.pico8_api.getModule();
-        if (!Module || !Module.pico8_fs_sync || !Module.pico8_fs_save) {
-            return;
-        }
+        if (!Module || !Module.pico8_fs_sync || !Module.pico8_fs_save) return;
+        
         const cartName = sessionStorage.getItem("userLoadedCartName");
-        if (!cartName) {
-            return;
-        }
+        if (!cartName) return;
+
         try {
             Module.pico8_fs_sync();
             const fs_base64 = Module.pico8_fs_save();
-            if (fs_base64 && fs_base64.length > 20) {
+            
+            if (fs_base64 && fs_base64.length > 50) {
                 const storageKey = `pico8_cartdata_${cartName}`;
                 localStorage.setItem(storageKey, fs_base64);
             }
@@ -659,10 +663,8 @@
         const storageKey = `pico8_cartdata_${cartName}`;
         const fs_base64 = localStorage.getItem(storageKey);
 
-        if (!fs_base64 || fs_base64.length === 0) {
-            return;
-        }
-
+        if (!fs_base64 || fs_base64.length < 50) return;
+        
         const Module = window.pico8_api.getModule();
         if (Module && Module.pico8_fs_load) {
             try {
@@ -675,13 +677,6 @@
         }
     }
 
-    window.addEventListener('beforeunload', saveCartData);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            saveCartData();
-        }
-    });
-
     async function initialBoot() {
         let cartToLoad;
         let cartName;
@@ -693,26 +688,24 @@
         if (cartFromUrl) {
             cartToLoad = cartFromUrl;
             cartName = cartFromUrl.split('/').pop().toUpperCase();
+            sessionStorage.setItem("userLoadedCartName", cartName);
         } else if (userCartName && userCartDataURL) {
             cartName = userCartName;
             try {
-                const blob = await dataUrlToBlob(userCartDataURL);
+                const response = await fetch(userCartDataURL);
+                const blob = await response.blob();
                 cartToLoad = URL.createObjectURL(blob);
             } catch (e) {
                 console.warn("Failed to load stored cart, falling back to default.", e);
-                cartToLoad = DEFAULT_CART;
-                cartName = "DEFAULT CART";
-                sessionStorage.removeItem("userLoadedCart");
-                sessionStorage.removeItem("userLoadedCartName");
+                loadCartInFrame(DEFAULT_CART_PATH);
+                return;
             }
         } else {
-            cartToLoad = DEFAULT_CART;
-            cartName = "DEFAULT CART";
+            loadCartInFrame(DEFAULT_CART_PATH);
+            return;
         }
         
-        sessionStorage.setItem("userLoadedCartName", cartName);
         document.getElementById('loadedCartFileName').textContent = cartName;
-        
         console.info(`Loading cart: ${cartName}`);
         loadCartInFrame(cartToLoad);
     }
@@ -720,6 +713,7 @@
     function startGameSequence() {
       initialBoot().catch(err => console.error("Initial boot failed.", err));
       document.getElementById('controls').style.opacity = 1;
+      setInterval(saveCartData, 5000);
     }
 
     function setAppHeight() {
@@ -750,6 +744,7 @@
       const startOverlay = document.getElementById('start-overlay');
       const startDefaultBtn = document.getElementById('start-default-button');
       const loadCartBtn = document.getElementById('load-cart-button');
+      const cartFileInput = document.getElementById('cartFileInput');
       
       const hideOverlayAndStart = () => {
           sessionStorage.setItem('hasStarted', 'true');
@@ -760,15 +755,44 @@
           }, 500);
       };
 
+      async function prepareAndStartDefault() {
+        try {
+            const response = await fetch(DEFAULT_CART_PATH);
+            const blob = await response.blob();
+            const dataUrl = await blobToDataURL(blob);
+            sessionStorage.setItem("userLoadedCart", dataUrl);
+            sessionStorage.setItem("userLoadedCartName", DEFAULT_CART_NAME);
+            hideOverlayAndStart();
+        } catch(e) {
+            console.error("Failed to fetch and prepare default cart.", e);
+            showToast("ERROR: COULD NOT LOAD DEFAULT CART", 5000);
+        }
+      }
+
       if (sessionStorage.getItem('hasStarted') === 'true') {
         startGameSequence();
       } else {
         startOverlay.style.display = 'flex';
         
-        startDefaultBtn.addEventListener('click', hideOverlayAndStart, { once: true });
+        startDefaultBtn.addEventListener('click', prepareAndStartDefault, { once: true });
         
         loadCartBtn.addEventListener('click', () => {
-            document.getElementById('cartFileInput').click();
+            cartFileInput.click();
+        });
+
+        cartFileInput.addEventListener('change', async (ev) => {
+            const file = ev.target.files && ev.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const dataUrl = e.target.result;
+                const upperCaseFileName = file.name.toUpperCase();
+                sessionStorage.setItem("userLoadedCart", dataUrl);
+                sessionStorage.setItem("userLoadedCartName", upperCaseFileName);
+                cartFileInput.value = '';
+                hideOverlayAndStart();
+            };
+            reader.readAsDataURL(file);
         });
       }
     });
@@ -843,8 +867,6 @@
       if (window.pico8_api.gd) {
         window.pico8_api.gd({ type: "keydown", keyCode: 13 });
         setTimeout(() => window.pico8_api.gd({ type: "keyup", keyCode: 13 }), 100);
-        
-        setTimeout(saveCartData, 200);
       }
     });
 
@@ -998,48 +1020,16 @@
     makeInputSlidable(volumeInput);
 
     document.getElementById("modalResetCartBtn").addEventListener("click", () => {
-      saveCartData();
       sessionStorage.removeItem("userLoadedCart");
       sessionStorage.removeItem("userLoadedCartName");
-      document.getElementById('loadedCartFileName').textContent = 'DEFAULT CART';
       showToast("Resetting to default cart...");
-      sessionStorage.setItem("userLoadedCartName", "DEFAULT CART");
-      loadCartInFrame(DEFAULT_CART);
-      console.info("Cart reset to default.");
+      window.location.reload();
     });
-    const cartFileInput = document.getElementById('cartFileInput');
-    document.getElementById("modalLoadCartBtn").addEventListener("click", () => cartFileInput.click());
-    cartFileInput.addEventListener('change', async (ev) => {
-      const file = ev.target.files && ev.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const startOverlay = document.getElementById('start-overlay');
-          if (startOverlay.style.display === 'flex') {
-              sessionStorage.setItem('hasStarted', 'true');
-              startOverlay.style.opacity = '0';
-              setTimeout(() => {
-                  startOverlay.style.display = 'none';
-                  startGameSequence();
-              }, 500);
-          }
-
-          saveCartData();
-          const dataUrl = e.target.result;
-          const blob = await dataUrlToBlob(dataUrl);
-          const blobUrl = URL.createObjectURL(blob);
-          const upperCaseFileName = file.name.toUpperCase();
-          sessionStorage.setItem("userLoadedCart", dataUrl);
-          sessionStorage.setItem("userLoadedCartName", upperCaseFileName);
-          document.getElementById('loadedCartFileName').textContent = upperCaseFileName;
-          showToast(`LOADED ${upperCaseFileName}`);
-          loadCartInFrame(blobUrl);
-          console.info(`Loaded cart: ${upperCaseFileName}`);
-          cartFileInput.value = '';
-        } catch (err) { console.error("Failed to load cart from file.", err); showToast("Failed to load cart.", 5000); }
-      };
-      reader.readAsDataURL(file);
+    
+    document.getElementById("modalLoadCartBtn").addEventListener("click", () => {
+        const cartFileInput = document.getElementById('cartFileInput');
+        cartFileInput.value = '';
+        cartFileInput.click();
     });
 
     const DEFAULT = { "pause": { "x": "2vmin", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "gear": { "x": "calc(100vw - 14vmin)", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "toolsBtn": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "eye": { "x": "16vmin", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-2": { "x": "2vmin", "y": "calc(100vh - 56vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-3": { "x": "16vmin", "y": "calc(100vh - 56vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-0": { "x": "2vmin", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-1": { "x": "16vmin", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-4": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-5": { "x": "calc(100vw - 14vmin)", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "combo1": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 14vmin)", "w": "26vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-2": { "x": "2vmin", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-3": { "x": "16vmin", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-0": { "x": "2vmin", "y": "calc(100vh - 14vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-1": { "x": "16vmin", "y": "calc(100vh - 14vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-4": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-5": { "x": "calc(100vw - 14vmin)", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "combo0": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 56vmin)", "w": "26vmin", "h": "12vmin", "opacity": 100, "removed": false }, "p1-joysBtn": { "x": "30vmin", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "p2-joysBtn": { "x": "30vmin", "y": "calc(100vh - 14vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "opacity": "100", "volume": "100" };
