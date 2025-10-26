@@ -608,7 +608,6 @@
   </script>
   <script src="js/ccmd.js"></script>
   <script>
-    /* --- Utilities --- */
     function showToast(message, duration = 3000) {
       const mb = document.getElementById('messageBox');
       mb.textContent = message.toUpperCase();
@@ -620,7 +619,6 @@
       return await response.blob();
     }
 
-    /* --- PICO-8 Bridge --- */
     window.pico8_api = {};
     const playerFrame = document.getElementById('pico-player-frame');
     const DEFAULT_CART = "c/cart.p8.png";
@@ -630,23 +628,17 @@
       playerFrame.src = `player.html?cart=${encodeURIComponent(url)}&t=${Date.now()}`;
     }
 
-    /* --- Cartridge Data Persistence --- */
     function saveCartData() {
       if (!window.pico8_api || !window.pico8_api.press || !window.pico8_api.getModule) {
         return;
       }
-      
       const cartName = sessionStorage.getItem("userLoadedCartName");
       if (!cartName) return;
-
       const Module = window.pico8_api.getModule();
-      if (!Module || !Module.pico8_fs_save || !Module.pico8_fs_sync) return;
-
+      if (!Module || !Module.pico8_fs_save) return;
       try {
-        Module.pico8_fs_sync();
-        
         const fs_base64 = Module.pico8_fs_save();
-        if (fs_base64) {
+        if (fs_base64 && fs_base64.length > 0) {
           const storageKey = `pico8_cartdata_${cartName}`;
           localStorage.setItem(storageKey, fs_base64);
         }
@@ -658,69 +650,61 @@
     function loadCartData() {
       const cartName = sessionStorage.getItem("userLoadedCartName");
       if (!cartName) return;
-      
       const storageKey = `pico8_cartdata_${cartName}`;
       const fs_base64 = localStorage.getItem(storageKey);
-      
-      if (!fs_base64) return;
-      
-      const Module = window.pico8_api.getModule();
-      if (Module && Module.pico8_fs_load) {
-        try {
+      if (fs_base64 && typeof fs_base64 === 'string' && fs_base64.length > 0) {
+        const Module = window.pico8_api.getModule();
+        if (Module && Module.pico8_fs_load) {
+          try {
             Module.pico8_fs_load(fs_base64);
-        } catch(e) {
-            console.error("Failed to restore cart data.", e);
+          } catch (e) {
+            console.error("Failed to restore cart data. Data might be corrupt. Starting fresh.", e);
+          }
         }
       }
     }
 
     window.addEventListener('beforeunload', saveCartData);
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            saveCartData();
-        }
+      if (document.visibilityState === 'hidden') {
+        saveCartData();
+      }
     });
 
-    /* --- Cartridge Boot Logic --- */
     async function initialBoot() {
-        let cartToLoad;
-        let cartName;
-
-        const cartFromUrl = new URL(location.href).searchParams.get("cart");
-        const userCartDataURL = sessionStorage.getItem("userLoadedCart");
-        const userCartName = sessionStorage.getItem("userLoadedCartName");
-
-        if (cartFromUrl) {
-            cartToLoad = cartFromUrl;
-            cartName = cartFromUrl.split('/').pop().toUpperCase();
-        } else if (userCartName && userCartDataURL) {
-            cartName = userCartName;
-            try {
-                const blob = await dataUrlToBlob(userCartDataURL);
-                cartToLoad = URL.createObjectURL(blob);
-            } catch (e) {
-                console.warn("Failed to load stored cart, falling back to default.", e);
-                cartToLoad = DEFAULT_CART;
-                cartName = "DEFAULT CART";
-                sessionStorage.removeItem("userLoadedCart");
-                sessionStorage.removeItem("userLoadedCartName");
-            }
-        } else {
-            cartToLoad = DEFAULT_CART;
-            cartName = "DEFAULT CART";
+      let cartToLoad;
+      let cartName;
+      const cartFromUrl = new URL(location.href).searchParams.get("cart");
+      const userCartDataURL = sessionStorage.getItem("userLoadedCart");
+      const userCartName = sessionStorage.getItem("userLoadedCartName");
+      if (cartFromUrl) {
+        cartToLoad = cartFromUrl;
+        cartName = cartFromUrl.split('/').pop().toUpperCase();
+      } else if (userCartName && userCartDataURL) {
+        cartName = userCartName;
+        try {
+          const blob = await dataUrlToBlob(userCartDataURL);
+          cartToLoad = URL.createObjectURL(blob);
+        } catch (e) {
+          console.warn("Failed to load stored cart, falling back to default.", e);
+          cartToLoad = DEFAULT_CART;
+          cartName = "DEFAULT CART";
+          sessionStorage.removeItem("userLoadedCart");
+          sessionStorage.removeItem("userLoadedCartName");
         }
-        
-        sessionStorage.setItem("userLoadedCartName", cartName);
-        document.getElementById('loadedCartFileName').textContent = cartName;
-        
-        console.info(`Loading cart: ${cartName}`);
-        loadCartInFrame(cartToLoad);
+      } else {
+        cartToLoad = DEFAULT_CART;
+        cartName = "DEFAULT CART";
+      }
+      sessionStorage.setItem("userLoadedCartName", cartName);
+      document.getElementById('loadedCartFileName').textContent = cartName;
+      console.info(`Loading cart: ${cartName}`);
+      loadCartInFrame(cartToLoad);
     }
 
     function startGameSequence() {
       initialBoot().catch(err => console.error("Initial boot failed.", err));
       document.getElementById('controls').style.opacity = 1;
-      
       setInterval(saveCartData, 5000);
     }
 
@@ -729,62 +713,59 @@
       document.documentElement.style.setProperty('--vh', `${vh}px`);
     }
 
-    /* --- Initialization --- */
     window.addEventListener("DOMContentLoaded", () => {
       setAppHeight();
       window.addEventListener('resize', setAppHeight);
-
       applyCustomImages();
       initLayout();
-      
       playerFrame.onload = () => {
         const readyCheckInterval = setInterval(() => {
-            if (playerFrame.contentWindow && playerFrame.contentWindow.pico8_api && playerFrame.contentWindow.pico8_api.getModule) {
-                const Module = playerFrame.contentWindow.pico8_api.getModule();
-                if (Module && Module.FS && playerFrame.contentWindow.pico8_api.press) {
-                    clearInterval(readyCheckInterval);
-                    window.pico8_api = playerFrame.contentWindow.pico8_api;
-                    loadCartData();
-                }
+          if (playerFrame.contentWindow && playerFrame.contentWindow.pico8_api && playerFrame.contentWindow.pico8_api.getModule) {
+            const Module = playerFrame.contentWindow.pico8_api.getModule();
+            if (Module && Module.FS && playerFrame.contentWindow.pico8_api.press) {
+              clearInterval(readyCheckInterval);
+              window.pico8_api = playerFrame.contentWindow.pico8_api;
+              loadCartData();
             }
+          }
         }, 100);
       };
-
       const startOverlay = document.getElementById('start-overlay');
       const startDefaultBtn = document.getElementById('start-default-button');
       const loadCartBtn = document.getElementById('load-cart-button');
-      
       const hideOverlayAndStart = () => {
-          sessionStorage.setItem('hasStarted', 'true');
-          startOverlay.style.opacity = '0';
-          setTimeout(() => {
-              startOverlay.style.display = 'none';
-              startGameSequence();
-          }, 500);
+        sessionStorage.setItem('hasStarted', 'true');
+        startOverlay.style.opacity = '0';
+        setTimeout(() => {
+          startOverlay.style.display = 'none';
+          startGameSequence();
+        }, 500);
       };
-
       if (sessionStorage.getItem('hasStarted') === 'true') {
         startGameSequence();
       } else {
         startOverlay.style.display = 'flex';
-        
-        startDefaultBtn.addEventListener('click', hideOverlayAndStart, { once: true });
-        
+        startDefaultBtn.addEventListener('click', hideOverlayAndStart, {
+          once: true
+        });
         loadCartBtn.addEventListener('click', () => {
-            document.getElementById('cartFileInput').click();
+          document.getElementById('cartFileInput').click();
         });
       }
     });
 
-    /* --- Custom Button Images --- */
     function applyCustomImages() {
       const elementsToSkin = document.querySelectorAll('#controls button, #trash');
       elementsToSkin.forEach(el => {
         if (el.classList.contains('joysBtn')) return;
         let imageName = '';
-        if (el.id) { imageName = el.id; } 
-        else if (el.dataset.p && el.dataset.k) { imageName = `p${el.dataset.p}-k${el.dataset.k}`; } 
-        else if (el.dataset.combo) { imageName = `combo-${el.dataset.combo.replace(/[+]/g, '_')}`; }
+        if (el.id) {
+          imageName = el.id;
+        } else if (el.dataset.p && el.dataset.k) {
+          imageName = `p${el.dataset.p}-k${el.dataset.k}`;
+        } else if (el.dataset.combo) {
+          imageName = `combo-${el.dataset.combo.replace(/[+]/g, '_')}`;
+        }
         if (imageName) {
           const img = new Image();
           img.src = `img/${imageName}.png`;
@@ -796,15 +777,22 @@
             img.style.objectFit = 'contain';
             img.style.pointerEvents = 'none';
             el.appendChild(img);
-            if (resizeHandle) { el.appendChild(resizeHandle); }
+            if (resizeHandle) {
+              el.appendChild(resizeHandle);
+            }
           };
         }
       });
     }
 
-    /* --- Button Input Handlers --- */
-    function PicoPress(k, p) { if (window.pico8_api.press) window.pico8_api.press(k, p); }
-    function PicoRelease(k, p) { if (window.pico8_api.release) window.pico8_api.release(k, p); }
+    function PicoPress(k, p) {
+      if (window.pico8_api.press) window.pico8_api.press(k, p);
+    }
+
+    function PicoRelease(k, p) {
+      if (window.pico8_api.release) window.pico8_api.release(k, p);
+    }
+
     function pressCombo(combo, down) {
       combo.split('+').forEach(k => {
         const [p, kk] = k.split('-').map(Number);
@@ -845,24 +833,48 @@
     document.getElementById("pause").addEventListener("click", () => {
       if (dragMode || resizeMode) return;
       if (window.pico8_api.gd) {
-        window.pico8_api.gd({ type: "keydown", keyCode: 13 });
-        setTimeout(() => window.pico8_api.gd({ type: "keyup", keyCode: 13 }), 100);
+        window.pico8_api.gd({
+          type: "keydown",
+          keyCode: 13
+        });
+        setTimeout(() => window.pico8_api.gd({
+          type: "keyup",
+          keyCode: 13
+        }), 100);
+        setTimeout(saveCartData, 200);
       }
     });
 
-    /* --- Joystick Logic --- */
     let activeJoystick = null;
     let joystickTouchIdentifier = null;
     let joystickStates = {
-      0: { left: false, right: false, up: false, down: false },
-      1: { left: false, right: false, up: false, down: false }
+      0: {
+        left: false,
+        right: false,
+        up: false,
+        down: false
+      },
+      1: {
+        left: false,
+        right: false,
+        up: false,
+        down: false
+      }
     };
-    const analogKeyMap = { left: 0, right: 1, up: 2, down: 3 };
+    const analogKeyMap = {
+      left: 0,
+      right: 1,
+      up: 2,
+      down: 3
+    };
 
     function updatePicoJoystickInput(newState, playerIndex) {
       for (const dir in newState) {
-        if (newState[dir] && !joystickStates[playerIndex][dir]) { PicoPress(analogKeyMap[dir], playerIndex); }
-        else if (!newState[dir] && joystickStates[playerIndex][dir]) { PicoRelease(analogKeyMap[dir], playerIndex); }
+        if (newState[dir] && !joystickStates[playerIndex][dir]) {
+          PicoPress(analogKeyMap[dir], playerIndex);
+        } else if (!newState[dir] && joystickStates[playerIndex][dir]) {
+          PicoRelease(analogKeyMap[dir], playerIndex);
+        }
       }
       joystickStates[playerIndex] = newState;
     }
@@ -874,7 +886,9 @@
       const joysThumb = activeJoystick.querySelector('.joysThumb');
       const rect = activeJoystick.getBoundingClientRect();
       let touch = e;
-      if (e.touches) { touch = Array.from(e.touches).find(t => t.identifier === joystickTouchIdentifier); }
+      if (e.touches) {
+        touch = Array.from(e.touches).find(t => t.identifier === joystickTouchIdentifier);
+      }
       if (!touch) return;
       const padRadius = rect.width / 2;
       let dx = touch.clientX - (rect.left + padRadius);
@@ -887,15 +901,19 @@
       joysThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
       const threshold = padRadius * 0.3;
       updatePicoJoystickInput({
-        left: dx < -threshold, right: dx > threshold,
-        up: dy < -threshold, down: dy > threshold
+        left: dx < -threshold,
+        right: dx > threshold,
+        up: dy < -threshold,
+        down: dy > threshold
       }, playerIndex);
     }
 
     function endJoystickMove(e) {
       if (!activeJoystick) return;
       if (e.changedTouches) {
-        if (!Array.from(e.changedTouches).some(t => t.identifier === joystickTouchIdentifier)) { return; }
+        if (!Array.from(e.changedTouches).some(t => t.identifier === joystickTouchIdentifier)) {
+          return;
+        }
       }
       const playerIndex = +activeJoystick.dataset.p;
       const joysThumb = activeJoystick.querySelector('.joysThumb');
@@ -907,7 +925,12 @@
       window.removeEventListener('touchcancel', endJoystickMove);
       activeJoystick.classList.remove('js-active');
       joysThumb.style.transform = 'translate(-50%, -50%)';
-      updatePicoJoystickInput({ left: false, right: false, up: false, down: false }, playerIndex);
+      updatePicoJoystickInput({
+        left: false,
+        right: false,
+        up: false,
+        down: false
+      }, playerIndex);
       activeJoystick = null;
       joystickTouchIdentifier = null;
     }
@@ -917,10 +940,14 @@
       e.preventDefault();
       e.stopPropagation();
       activeJoystick = padElement;
-      if (e.changedTouches) { joystickTouchIdentifier = e.changedTouches[0].identifier; }
+      if (e.changedTouches) {
+        joystickTouchIdentifier = e.changedTouches[0].identifier;
+      }
       activeJoystick.classList.add('js-active');
       window.addEventListener('mousemove', handleJoystickMove);
-      window.addEventListener('touchmove', handleJoystickMove, { passive: false });
+      window.addEventListener('touchmove', handleJoystickMove, {
+        passive: false
+      });
       window.addEventListener('mouseup', endJoystickMove);
       window.addEventListener('touchend', endJoystickMove);
       window.addEventListener('mouseleave', endJoystickMove);
@@ -929,16 +956,20 @@
     }
     document.querySelectorAll('.joysBtn').forEach(pad => {
       pad.addEventListener('mousedown', e => startJoystickMove(e, pad));
-      pad.addEventListener('touchstart', e => startJoystickMove(e, pad), { passive: false });
+      pad.addEventListener('touchstart', e => startJoystickMove(e, pad), {
+        passive: false
+      });
     });
 
-    /* --- Tool Sliders Logic --- */
     function updateSliderVisual(input) {
-      const min = parseFloat(input.min) || 0, max = parseFloat(input.max) || 100, value = parseFloat(input.value) || 0;
+      const min = parseFloat(input.min) || 0,
+        max = parseFloat(input.max) || 100,
+        value = parseFloat(input.value) || 0;
       const percentage = ((value - min) / (max - min)) * 100;
       const fillColor = input.closest('.tool-item.zeroed') ? 'var(--pico-red)' : 'var(--pico-dark-gray)';
       input.style.background = `linear-gradient(to right, ${fillColor} ${percentage}%, var(--pico-black) ${percentage}%)`;
     }
+
     function updateInputBoxState(input) {
       const toolItem = input.closest('.tool-item');
       if (!toolItem) return;
@@ -946,7 +977,12 @@
     }
     const opacityInput = document.getElementById("opacitySlider");
     const volumeInput = document.getElementById("volumeSlider");
-    function setOpacity(v) { document.querySelectorAll("#controls button").forEach(el => { el.style.opacity = v / 100; }); }
+
+    function setOpacity(v) {
+      document.querySelectorAll("#controls button").forEach(el => {
+        el.style.opacity = v / 100;
+      });
+    }
     opacityInput.addEventListener("input", function() {
       this.value = Math.max(0, Math.min(100, this.value));
       setOpacity(this.value);
@@ -961,14 +997,19 @@
       updateInputBoxState(this);
       updateSliderVisual(this);
     });
+
     function makeInputSlidable(inputElement) {
-      let isDragging = false, startX = 0, startValue = 0;
+      let isDragging = false,
+        startX = 0,
+        startValue = 0;
       const handleMove = (e) => {
         if (!isDragging) return;
         e.preventDefault();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         inputElement.value = Math.max(parseFloat(inputElement.min), Math.min(parseFloat(inputElement.max), Math.round(startValue + ((clientX - startX) * 0.5))));
-        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        inputElement.dispatchEvent(new Event('input', {
+          bubbles: true
+        }));
       };
       const handleEnd = () => {
         if (!isDragging) return;
@@ -986,22 +1027,29 @@
         startValue = parseFloat(inputElement.value);
         document.body.style.cursor = 'ew-resize';
         window.addEventListener('mousemove', handleMove);
-        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchmove', handleMove, {
+          passive: false
+        });
         window.addEventListener('mouseup', handleEnd);
         window.addEventListener('touchend', handleEnd);
       };
       inputElement.addEventListener('mousedown', handleStart);
-      inputElement.addEventListener('touchstart', handleStart, { passive: true });
-      inputElement.addEventListener('focus', () => { inputElement.style.cursor = 'text'; });
+      inputElement.addEventListener('touchstart', handleStart, {
+        passive: true
+      });
+      inputElement.addEventListener('focus', () => {
+        inputElement.style.cursor = 'text';
+      });
       inputElement.addEventListener('blur', () => {
         inputElement.style.cursor = 'ew-resize';
-        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        inputElement.dispatchEvent(new Event('input', {
+          bubbles: true
+        }));
       });
     }
     makeInputSlidable(opacityInput);
     makeInputSlidable(volumeInput);
 
-    /* --- Cartridge Actions --- */
     document.getElementById("modalResetCartBtn").addEventListener("click", () => {
       saveCartData();
       sessionStorage.removeItem("userLoadedCart");
@@ -1022,14 +1070,13 @@
         try {
           const startOverlay = document.getElementById('start-overlay');
           if (startOverlay.style.display === 'flex') {
-              sessionStorage.setItem('hasStarted', 'true');
-              startOverlay.style.opacity = '0';
-              setTimeout(() => {
-                  startOverlay.style.display = 'none';
-                  startGameSequence();
-              }, 500);
+            sessionStorage.setItem('hasStarted', 'true');
+            startOverlay.style.opacity = '0';
+            setTimeout(() => {
+              startOverlay.style.display = 'none';
+              startGameSequence();
+            }, 500);
           }
-
           saveCartData();
           const dataUrl = e.target.result;
           const blob = await dataUrlToBlob(dataUrl);
@@ -1042,187 +1089,498 @@
           loadCartInFrame(blobUrl);
           console.info(`Loaded cart: ${upperCaseFileName}`);
           cartFileInput.value = '';
-        } catch (err) { console.error("Failed to load cart from file.", err); showToast("Failed to load cart.", 5000); }
+        } catch (err) {
+          console.error("Failed to load cart from file.", err);
+          showToast("Failed to load cart.", 5000);
+        }
       };
       reader.readAsDataURL(file);
     });
 
-    /* --- Default Layout Data --- */
-    const DEFAULT = { "pause": { "x": "2vmin", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "gear": { "x": "calc(100vw - 14vmin)", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "toolsBtn": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "eye": { "x": "16vmin", "y": "calc(100vh - 70vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-2": { "x": "2vmin", "y": "calc(100vh - 56vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-3": { "x": "16vmin", "y": "calc(100vh - 56vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-0": { "x": "2vmin", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-1": { "x": "16vmin", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-4": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-5": { "x": "calc(100vw - 14vmin)", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "combo1": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 14vmin)", "w": "26vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-2": { "x": "2vmin", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-3": { "x": "16vmin", "y": "calc(100vh - 28vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-0": { "x": "2vmin", "y": "calc(100vh - 14vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "1-1": { "x": "16vmin", "y": "calc(100vh - 14vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-4": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "0-5": { "x": "calc(100vw - 14vmin)", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "combo0": { "x": "calc(100vw - 28vmin)", "y": "calc(100vh - 56vmin)", "w": "26vmin", "h": "12vmin", "opacity": 100, "removed": false }, "p1-joysBtn": { "x": "30vmin", "y": "calc(100vh - 42vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "p2-joysBtn": { "x": "30vmin", "y": "calc(100vh - 14vmin)", "w": "12vmin", "h": "12vmin", "opacity": 100, "removed": false }, "opacity": "100", "volume": "100" };
+    const DEFAULT = {
+      "pause": {
+        "x": "2vmin",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "gear": {
+        "x": "calc(100vw - 14vmin)",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "toolsBtn": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "eye": {
+        "x": "16vmin",
+        "y": "calc(100vh - 70vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-2": {
+        "x": "2vmin",
+        "y": "calc(100vh - 56vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-3": {
+        "x": "16vmin",
+        "y": "calc(100vh - 56vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-0": {
+        "x": "2vmin",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-1": {
+        "x": "16vmin",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-4": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-5": {
+        "x": "calc(100vw - 14vmin)",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "combo1": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 14vmin)",
+        "w": "26vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-2": {
+        "x": "2vmin",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-3": {
+        "x": "16vmin",
+        "y": "calc(100vh - 28vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-0": {
+        "x": "2vmin",
+        "y": "calc(100vh - 14vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "1-1": {
+        "x": "16vmin",
+        "y": "calc(100vh - 14vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-4": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "0-5": {
+        "x": "calc(100vw - 14vmin)",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "combo0": {
+        "x": "calc(100vw - 28vmin)",
+        "y": "calc(100vh - 56vmin)",
+        "w": "26vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "p1-joysBtn": {
+        "x": "30vmin",
+        "y": "calc(100vh - 42vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "p2-joysBtn": {
+        "x": "30vmin",
+        "y": "calc(100vh - 14vmin)",
+        "w": "12vmin",
+        "h": "12vmin",
+        "opacity": 100,
+        "removed": false
+      },
+      "opacity": "100",
+      "volume": "100"
+    };
 
-    /* --- Layout Management --- */
     function getElementId(id) {
       if (id.startsWith("combo")) return document.querySelector(`button[data-combo="${id==='combo0'?'0-4+0-5':'1-4+1-5'}"]`);
-      if (id.includes('-') && !id.includes('joys')) { const [p, k] = id.split('-'); return document.querySelector(`button[data-p="${p}"][data-k="${k}"]`); }
+      if (id.includes('-') && !id.includes('joys')) {
+        const [p, k] = id.split('-');
+        return document.querySelector(`button[data-p="${p}"][data-k="${k}"]`);
+      }
       return document.getElementById(id);
     }
-    function applyDefault() { loadPosFromObject(DEFAULT); }
+
+    function applyDefault() {
+      loadPosFromObject(DEFAULT);
+    }
     const storageKey = "picoBtnPos";
+
     function loadPosFromObject(data) {
       try {
-        if (data.opacity != null) { opacityInput.value = data.opacity; setOpacity(data.opacity); updateInputBoxState(opacityInput); updateSliderVisual(opacityInput); }
-        if (data.volume != null) { volumeInput.value = data.volume; if (window.pico8_api.volume) window.pico8_api.volume(Math.round((data.volume / 100) * 256)); updateInputBoxState(volumeInput); updateSliderVisual(volumeInput); }
-        document.querySelectorAll("#controls button").forEach(el => { el.style.display = "none"; el.dataset.removed = "true"; });
+        if (data.opacity != null) {
+          opacityInput.value = data.opacity;
+          setOpacity(data.opacity);
+          updateInputBoxState(opacityInput);
+          updateSliderVisual(opacityInput);
+        }
+        if (data.volume != null) {
+          volumeInput.value = data.volume;
+          if (window.pico8_api.volume) window.pico8_api.volume(Math.round((data.volume / 100) * 256));
+          updateInputBoxState(volumeInput);
+          updateSliderVisual(volumeInput);
+        }
+        document.querySelectorAll("#controls button").forEach(el => {
+          el.style.display = "none";
+          el.dataset.removed = "true";
+        });
         Object.entries(data).forEach(([id, info]) => {
           if (id === "opacity" || id === "volume") return;
           const el = getElementId(id);
           if (!el) return;
           el.style.position = "absolute";
-
           let correctedY = info.y;
           if (correctedY && correctedY.includes('vh')) {
-              correctedY = correctedY.replace(/(\d+)vh/g, 'calc(var(--vh, 1vh) * $1)');
+            correctedY = correctedY.replace(/(\d+)vh/g, 'calc(var(--vh, 1vh) * $1)');
           }
-
           if (info.x != null) el.style.left = info.x;
           if (correctedY != null) el.style.top = correctedY;
           if (info.w) el.style.width = info.w;
           if (info.h) el.style.height = info.h;
-          
           el.style.opacity = (info.opacity != null) ? info.opacity / 100 : 1;
-          if (info.removed) { el.style.display = "none"; el.dataset.removed = "true"; } 
-          else { el.style.display = 'flex'; delete el.dataset.removed; }
+          if (info.removed) {
+            el.style.display = "none";
+            el.dataset.removed = "true";
+          } else {
+            el.style.display = 'flex';
+            delete el.dataset.removed;
+          }
         });
-      } catch (e) { console.error("Error applying layout from object.", e); showToast("Error applying layout.", 5000); }
+      } catch (e) {
+        console.error("Error applying layout from object.", e);
+        showToast("Error applying layout.", 5000);
+      }
     }
+
     function loadPos() {
-      try { const item = localStorage.getItem(storageKey); if (!item) return false; loadPosFromObject(JSON.parse(item || "{}")); return true; } 
-      catch (e) { return false; }
+      try {
+        const item = localStorage.getItem(storageKey);
+        if (!item) return false;
+        loadPosFromObject(JSON.parse(item || "{}"));
+        return true;
+      } catch (e) {
+        return false;
+      }
     }
+
     function savePos() {
       const data = {};
       document.querySelectorAll("#controls button").forEach(b => {
         const key = b.id || (b.dataset.combo ? (b.dataset.combo === "0-4+0-5" ? "combo0" : "combo1") : `${b.dataset.p}-${b.dataset.k}`);
         if (!key) return;
-        data[key] = { x: b.style.left || "", y: b.style.top || "", w: b.style.width || "", h: b.style.height || "", opacity: b.style.opacity ? Math.round(parseFloat(b.style.opacity) * 100) : 100, removed: !!b.dataset.removed };
+        data[key] = {
+          x: b.style.left || "",
+          y: b.style.top || "",
+          w: b.style.width || "",
+          h: b.style.height || "",
+          opacity: b.style.opacity ? Math.round(parseFloat(b.style.opacity) * 100) : 100,
+          removed: !!b.dataset.removed
+        };
       });
       data.opacity = opacityInput.value;
       data.volume = volumeInput.value;
       localStorage.setItem(storageKey, JSON.stringify(data));
     }
+
     function saveToFile() {
       downloadJSON(JSON.parse(localStorage.getItem(storageKey) || '{}'), `pico-layout-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`);
       showToast("Layout saved to file.");
       console.info("Layout saved to file.");
     }
+
     function downloadJSON(obj, filename) {
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], {
+        type: "application/json"
+      }));
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
     }
     const fileInput = document.getElementById('fileInput');
-    function loadFromFile() { fileInput.value = ''; fileInput.click(); }
+
+    function loadFromFile() {
+      fileInput.value = '';
+      fileInput.click();
+    }
     fileInput.addEventListener('change', ev => {
       const f = ev.target.files && ev.target.files[0];
       if (!f) return;
       const reader = new FileReader();
       reader.onload = e => {
-        try { const obj = JSON.parse(e.target.result); loadPosFromObject(obj); savePos(); showToast("Layout loaded!"); console.info("Layout loaded from file."); } 
-        catch (err) { console.error("Failed to load layout from file: invalid JSON.", err); showToast("Failed to load layout: invalid JSON", 5000); }
+        try {
+          const obj = JSON.parse(e.target.result);
+          loadPosFromObject(obj);
+          savePos();
+          showToast("Layout loaded!");
+          console.info("Layout loaded from file.");
+        } catch (err) {
+          console.error("Failed to load layout from file: invalid JSON.", err);
+          showToast("Failed to load layout: invalid JSON", 5000);
+        }
       };
       reader.readAsText(f);
     });
 
-    /* --- Drag and Resize Logic --- */
-    let dragMode = false, resizeMode = false, dragged = null, resized = null, draggingOverTrash = false;
+    let dragMode = false,
+      resizeMode = false,
+      dragged = null,
+      resized = null,
+      draggingOverTrash = false;
     const SNAP_THRESHOLD = 6;
-    const vGuide = document.getElementById('snap-guide-v'), hGuide = document.getElementById('snap-guide-h');
+    const vGuide = document.getElementById('snap-guide-v'),
+      hGuide = document.getElementById('snap-guide-h');
     const PROTECTED_BUTTON_IDS = ['gear', 'toolsBtn', 'eye', 'pause'];
 
     function checkAndApplyDragSnapping(movingEl, newLeft, newTop) {
-      let snappedX = false, snappedY = false; const movingRect = movingEl.getBoundingClientRect(); const finalPos = { x: newLeft, y: newTop }; const movingPoints = { left: newLeft, top: newTop, cx: newLeft + movingRect.width / 2, cy: newTop + movingRect.height / 2, right: newLeft + movingRect.width, bottom: newTop + movingRect.height };
+      let snappedX = false,
+        snappedY = false;
+      const movingRect = movingEl.getBoundingClientRect();
+      const finalPos = {
+        x: newLeft,
+        y: newTop
+      };
+      const movingPoints = {
+        left: newLeft,
+        top: newTop,
+        cx: newLeft + movingRect.width / 2,
+        cy: newTop + movingRect.height / 2,
+        right: newLeft + movingRect.width,
+        bottom: newTop + movingRect.height
+      };
       const targets = Array.from(document.querySelectorAll("#controls button")).filter(el => el !== movingEl && el.style.display !== 'none' && el.style.visibility !== 'hidden');
       for (const target of targets) {
-        const tRect = target.getBoundingClientRect(); const targetPoints = { left: tRect.left, top: tRect.top, cx: tRect.left + tRect.width / 2, cy: tRect.top + tRect.height / 2, right: tRect.right, bottom: tRect.bottom };
+        const tRect = target.getBoundingClientRect();
+        const targetPoints = {
+          left: tRect.left,
+          top: tRect.top,
+          cx: tRect.left + tRect.width / 2,
+          cy: tRect.top + tRect.height / 2,
+          right: tRect.right,
+          bottom: tRect.bottom
+        };
         if (!snappedX) {
-          if (Math.abs(movingPoints.left - targetPoints.left) < SNAP_THRESHOLD) { finalPos.x = targetPoints.left; vGuide.style.left = targetPoints.left + 'px'; snappedX = true; }
-          else if (Math.abs(movingPoints.cx - targetPoints.cx) < SNAP_THRESHOLD) { finalPos.x = targetPoints.cx - movingRect.width / 2; vGuide.style.left = targetPoints.cx + 'px'; snappedX = true; }
-          else if (Math.abs(movingPoints.right - targetPoints.right) < SNAP_THRESHOLD) { finalPos.x = targetPoints.right - movingRect.width; vGuide.style.left = targetPoints.right + 'px'; snappedX = true; }
+          if (Math.abs(movingPoints.left - targetPoints.left) < SNAP_THRESHOLD) {
+            finalPos.x = targetPoints.left;
+            vGuide.style.left = targetPoints.left + 'px';
+            snappedX = true;
+          } else if (Math.abs(movingPoints.cx - targetPoints.cx) < SNAP_THRESHOLD) {
+            finalPos.x = targetPoints.cx - movingRect.width / 2;
+            vGuide.style.left = targetPoints.cx + 'px';
+            snappedX = true;
+          } else if (Math.abs(movingPoints.right - targetPoints.right) < SNAP_THRESHOLD) {
+            finalPos.x = targetPoints.right - movingRect.width;
+            vGuide.style.left = targetPoints.right + 'px';
+            snappedX = true;
+          }
         }
         if (!snappedY) {
-          if (Math.abs(movingPoints.top - targetPoints.top) < SNAP_THRESHOLD) { finalPos.y = targetPoints.top; hGuide.style.top = targetPoints.top + 'px'; snappedY = true; }
-          else if (Math.abs(movingPoints.cy - targetPoints.cy) < SNAP_THRESHOLD) { finalPos.y = targetPoints.cy - movingRect.height / 2; hGuide.style.top = targetPoints.cy + 'px'; snappedY = true; }
-          else if (Math.abs(movingPoints.bottom - targetPoints.bottom) < SNAP_THRESHOLD) { finalPos.y = targetPoints.bottom - movingRect.height; hGuide.style.top = targetPoints.bottom + 'px'; snappedY = true; }
+          if (Math.abs(movingPoints.top - targetPoints.top) < SNAP_THRESHOLD) {
+            finalPos.y = targetPoints.top;
+            hGuide.style.top = targetPoints.top + 'px';
+            snappedY = true;
+          } else if (Math.abs(movingPoints.cy - targetPoints.cy) < SNAP_THRESHOLD) {
+            finalPos.y = targetPoints.cy - movingRect.height / 2;
+            hGuide.style.top = targetPoints.cy + 'px';
+            snappedY = true;
+          } else if (Math.abs(movingPoints.bottom - targetPoints.bottom) < SNAP_THRESHOLD) {
+            finalPos.y = targetPoints.bottom - movingRect.height;
+            hGuide.style.top = targetPoints.bottom + 'px';
+            snappedY = true;
+          }
         }
         if (snappedX && snappedY) break;
       }
-      vGuide.style.display = snappedX ? 'block' : 'none'; hGuide.style.display = snappedY ? 'block' : 'none';
+      vGuide.style.display = snappedX ? 'block' : 'none';
+      hGuide.style.display = snappedY ? 'block' : 'none';
       return finalPos;
     }
+
     function checkAndApplyResizeSnapping(resizingEl, newW, newH) {
-      let snappedX = false, snappedY = false; const resizingRect = resizingEl.getBoundingClientRect(); const finalSize = { w: newW, h: newH }; const newRight = resizingRect.left + newW; const newBottom = resizingRect.top + newH;
+      let snappedX = false,
+        snappedY = false;
+      const resizingRect = resizingEl.getBoundingClientRect();
+      const finalSize = {
+        w: newW,
+        h: newH
+      };
+      const newRight = resizingRect.left + newW;
+      const newBottom = resizingRect.top + newH;
       const targets = Array.from(document.querySelectorAll("#controls button")).filter(el => el !== resizingEl && el.style.display !== 'none' && el.style.visibility !== 'hidden');
       for (const target of targets) {
-        const tRect = target.getBoundingClientRect(); const targetPoints = { left: tRect.left, top: tRect.top, cx: tRect.left + tRect.width / 2, cy: tRect.top + tRect.height / 2, right: tRect.right, bottom: tRect.bottom };
+        const tRect = target.getBoundingClientRect();
+        const targetPoints = {
+          left: tRect.left,
+          top: tRect.top,
+          cx: tRect.left + tRect.width / 2,
+          cy: tRect.top + tRect.height / 2,
+          right: tRect.right,
+          bottom: tRect.bottom
+        };
         if (!snappedX) {
-          if (Math.abs(newRight - targetPoints.left) < SNAP_THRESHOLD) { finalSize.w = targetPoints.left - resizingRect.left; vGuide.style.left = targetPoints.left + 'px'; snappedX = true; }
-          else if (Math.abs(newRight - targetPoints.cx) < SNAP_THRESHOLD) { finalSize.w = targetPoints.cx - resizingRect.left; vGuide.style.left = targetPoints.cx + 'px'; snappedX = true; }
-          else if (Math.abs(newRight - targetPoints.right) < SNAP_THRESHOLD) { finalSize.w = targetPoints.right - resizingRect.left; vGuide.style.left = targetPoints.right + 'px'; snappedX = true; }
+          if (Math.abs(newRight - targetPoints.left) < SNAP_THRESHOLD) {
+            finalSize.w = targetPoints.left - resizingRect.left;
+            vGuide.style.left = targetPoints.left + 'px';
+            snappedX = true;
+          } else if (Math.abs(newRight - targetPoints.cx) < SNAP_THRESHOLD) {
+            finalSize.w = targetPoints.cx - resizingRect.left;
+            vGuide.style.left = targetPoints.cx + 'px';
+            snappedX = true;
+          } else if (Math.abs(newRight - targetPoints.right) < SNAP_THRESHOLD) {
+            finalSize.w = targetPoints.right - resizingRect.left;
+            vGuide.style.left = targetPoints.right + 'px';
+            snappedX = true;
+          }
         }
         if (!snappedY) {
-          if (Math.abs(newBottom - targetPoints.top) < SNAP_THRESHOLD) { finalSize.h = targetPoints.top - resizingRect.top; hGuide.style.top = targetPoints.top + 'px'; snappedY = true; }
-          else if (Math.abs(newBottom - targetPoints.cy) < SNAP_THRESHOLD) { finalSize.h = targetPoints.cy - resizingRect.top; hGuide.style.top = targetPoints.cy + 'px'; snappedY = true; }
-          else if (Math.abs(newBottom - targetPoints.bottom) < SNAP_THRESHOLD) { finalSize.h = targetPoints.bottom - resizingRect.top; hGuide.style.top = targetPoints.bottom + 'px'; snappedY = true; }
+          if (Math.abs(newBottom - targetPoints.top) < SNAP_THRESHOLD) {
+            finalSize.h = targetPoints.top - resizingRect.top;
+            hGuide.style.top = targetPoints.top + 'px';
+            snappedY = true;
+          } else if (Math.abs(newBottom - targetPoints.cy) < SNAP_THRESHOLD) {
+            finalSize.h = targetPoints.cy - resizingRect.top;
+            hGuide.style.top = targetPoints.cy + 'px';
+            snappedY = true;
+          } else if (Math.abs(newBottom - targetPoints.bottom) < SNAP_THRESHOLD) {
+            finalSize.h = targetPoints.bottom - resizingRect.top;
+            hGuide.style.top = targetPoints.bottom + 'px';
+            snappedY = true;
+          }
         }
         if (snappedX && snappedY) break;
       }
-      vGuide.style.display = snappedX ? 'block' : 'none'; hGuide.style.display = snappedY ? 'block' : 'none';
+      vGuide.style.display = snappedX ? 'block' : 'none';
+      hGuide.style.display = snappedY ? 'block' : 'none';
       return finalSize;
     }
-    function hideAllGuides() { vGuide.style.display = 'none'; hGuide.style.display = 'none'; document.getElementById('resize-info').style.display = 'none'; }
-    function clampPosition(el) {
-      const rect = el.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
-      if (rect.left < 0) el.style.left = "0px"; if (rect.top < 0) el.style.top = "0px"; if (rect.right > vw) el.style.left = (vw - rect.width) + "px"; if (rect.bottom > vh) el.style.top = (vh - rect.height) + "px";
+
+    function hideAllGuides() {
+      vGuide.style.display = 'none';
+      hGuide.style.display = 'none';
+      document.getElementById('resize-info').style.display = 'none';
     }
-    
+
+    function clampPosition(el) {
+      const rect = el.getBoundingClientRect(),
+        vw = window.innerWidth,
+        vh = window.innerHeight;
+      if (rect.left < 0) el.style.left = "0px";
+      if (rect.top < 0) el.style.top = "0px";
+      if (rect.right > vw) el.style.left = (vw - rect.width) + "px";
+      if (rect.bottom > vh) el.style.top = (vh - rect.height) + "px";
+    }
+
     function dragStart(e, el) {
       if (e.target.classList.contains('resize-handle')) return;
       dragged = el;
       const touch = e.touches ? e.touches[0] : e;
       const parentRect = el.offsetParent.getBoundingClientRect();
-
       dragged.dataset.startX = touch.clientX;
       dragged.dataset.startY = touch.clientY;
       dragged.dataset.startLeft = el.offsetLeft;
       dragged.dataset.startTop = el.offsetTop;
       dragged.dataset.parentLeft = parentRect.left;
       dragged.dataset.parentTop = parentRect.top;
-
       dragged.dataset.originalX = el.style.left;
       dragged.dataset.originalY = el.style.top;
-      
       document.getElementById('trash').style.display = "flex";
     }
+
     function dragMove(e) {
       if (!dragged) return;
       e.preventDefault();
       const touch = e.touches ? e.touches[0] : e;
-      
       const deltaX = touch.clientX - parseFloat(dragged.dataset.startX);
       const deltaY = touch.clientY - parseFloat(dragged.dataset.startY);
       const newLeft = parseFloat(dragged.dataset.startLeft) + deltaX;
       const newTop = parseFloat(dragged.dataset.startTop) + deltaY;
-
       const parentLeft = parseFloat(dragged.dataset.parentLeft);
       const parentTop = parseFloat(dragged.dataset.parentTop);
       const proposedViewportX = newLeft + parentLeft;
       const proposedViewportY = newTop + parentTop;
-
       const snappedViewportPos = checkAndApplyDragSnapping(dragged, proposedViewportX, proposedViewportY);
-
       dragged.style.left = (snappedViewportPos.x - parentLeft) + "px";
       dragged.style.top = (snappedViewportPos.y - parentTop) + "px";
       clampPosition(dragged);
-
-      const trash = document.getElementById('trash'), tRect = trash.getBoundingClientRect(), dRect = dragged.getBoundingClientRect();
+      const trash = document.getElementById('trash'),
+        tRect = trash.getBoundingClientRect(),
+        dRect = dragged.getBoundingClientRect();
       const overlap = !(dRect.right < tRect.left || dRect.left > tRect.right || dRect.bottom < tRect.top || dRect.top > tRect.bottom);
       trash.classList.toggle('over', overlap);
       draggingOverTrash = overlap;
     }
-    
+
     function dragEnd() {
       if (dragged) {
         const isProtected = PROTECTED_BUTTON_IDS.includes(dragged.id);
@@ -1245,58 +1603,165 @@
       draggingOverTrash = false;
       hideAllGuides();
     }
+
     function resizeStart(e, handle) {
-      e.stopPropagation(); e.preventDefault(); resizeMode = true; resized = handle.parentElement; const touch = e.touches ? e.touches[0] : e;
-      Object.assign(resized.dataset, { startX: touch.clientX, startY: touch.clientY, startW: resized.offsetWidth, startH: resized.offsetHeight });
+      e.stopPropagation();
+      e.preventDefault();
+      resizeMode = true;
+      resized = handle.parentElement;
+      const touch = e.touches ? e.touches[0] : e;
+      Object.assign(resized.dataset, {
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startW: resized.offsetWidth,
+        startH: resized.offsetHeight
+      });
     }
+
     function resizeMove(e) {
       if (!resized) return;
-      e.preventDefault(); const touch = e.touches ? e.touches[0] : e; const dx = touch.clientX - parseFloat(resized.dataset.startX); const dy = touch.clientY - parseFloat(resized.dataset.startY);
-      let proposedW = parseFloat(resized.dataset.startW) + dx; let proposedH = parseFloat(resized.dataset.startH) + dy; const resizeInfo = document.getElementById('resize-info'); let snappedToRatio = false; const ASPECT_SNAP_THRESHOLD = 0.05; const ratio = proposedW / proposedH;
-      if (Math.abs(ratio - 1.0) < ASPECT_SNAP_THRESHOLD) { proposedH = proposedW; snappedToRatio = "1:1"; }
-      else if (Math.abs(ratio - 2.0) < ASPECT_SNAP_THRESHOLD) { proposedH = proposedW / 2; snappedToRatio = "2:1"; }
-      else if (Math.abs(ratio - 0.5) < ASPECT_SNAP_THRESHOLD) { proposedH = proposedW * 2; snappedToRatio = "1:2"; }
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const dx = touch.clientX - parseFloat(resized.dataset.startX);
+      const dy = touch.clientY - parseFloat(resized.dataset.startY);
+      let proposedW = parseFloat(resized.dataset.startW) + dx;
+      let proposedH = parseFloat(resized.dataset.startH) + dy;
+      const resizeInfo = document.getElementById('resize-info');
+      let snappedToRatio = false;
+      const ASPECT_SNAP_THRESHOLD = 0.05;
+      const ratio = proposedW / proposedH;
+      if (Math.abs(ratio - 1.0) < ASPECT_SNAP_THRESHOLD) {
+        proposedH = proposedW;
+        snappedToRatio = "1:1";
+      } else if (Math.abs(ratio - 2.0) < ASPECT_SNAP_THRESHOLD) {
+        proposedH = proposedW / 2;
+        snappedToRatio = "2:1";
+      } else if (Math.abs(ratio - 0.5) < ASPECT_SNAP_THRESHOLD) {
+        proposedH = proposedW * 2;
+        snappedToRatio = "1:2";
+      }
       if (snappedToRatio) {
-        const rect = resized.getBoundingClientRect(); resizeInfo.style.display = 'block'; resizeInfo.textContent = snappedToRatio;
-        resizeInfo.style.left = `${rect.left+(rect.width/2)-(resizeInfo.offsetWidth/2)}px`; resizeInfo.style.top = `${rect.top-22}px`; resized.style.borderColor = 'var(--pico-blue)';
-      } else { resizeInfo.style.display = 'none'; resized.style.borderColor = ''; }
+        const rect = resized.getBoundingClientRect();
+        resizeInfo.style.display = 'block';
+        resizeInfo.textContent = snappedToRatio;
+        resizeInfo.style.left = `${rect.left+(rect.width/2)-(resizeInfo.offsetWidth/2)}px`;
+        resizeInfo.style.top = `${rect.top-22}px`;
+        resized.style.borderColor = 'var(--pico-blue)';
+      } else {
+        resizeInfo.style.display = 'none';
+        resized.style.borderColor = '';
+      }
       const snappedSize = checkAndApplyResizeSnapping(resized, proposedW, proposedH);
-      resized.style.width = Math.max(40, snappedSize.w) + "px"; resized.style.height = Math.max(40, snappedSize.h) + "px"; clampPosition(resized);
+      resized.style.width = Math.max(40, snappedSize.w) + "px";
+      resized.style.height = Math.max(40, snappedSize.h) + "px";
+      clampPosition(resized);
     }
+
     function resizeEnd() {
-      if (resized) { resized.style.borderColor = ''; clampPosition(resized); savePos(); resized = null; resizeMode = false; }
+      if (resized) {
+        resized.style.borderColor = '';
+        clampPosition(resized);
+        savePos();
+        resized = null;
+        resizeMode = false;
+      }
       hideAllGuides();
     }
 
-    /* --- UI Modes and Modals --- */
-    const gearBtn = document.getElementById("gear"), eyeBtn = document.getElementById("eye"), toolsBtn = document.getElementById("toolsBtn"), toolsModal = document.getElementById('toolsModal');
-    function closeToolsModal() { if (toolsModal.style.display !== 'none') { toolsModal.style.display = 'none'; } }
-    function setGearState(on) {
-      dragMode = !!on; document.body.classList.toggle("dragMode", dragMode); gearBtn.classList.toggle("active", dragMode);
-      toolsBtn.style.display = dragMode ? "flex" : "none";
-      if (!on) { hideAllGuides(); document.getElementById('layoutTemplateModal').style.display = 'none'; closeToolsModal(); }
+    const gearBtn = document.getElementById("gear"),
+      eyeBtn = document.getElementById("eye"),
+      toolsBtn = document.getElementById("toolsBtn"),
+      toolsModal = document.getElementById('toolsModal');
+
+    function closeToolsModal() {
+      if (toolsModal.style.display !== 'none') {
+        toolsModal.style.display = 'none';
+      }
     }
-    gearBtn.addEventListener("click", (ev) => { setGearState(!dragMode); ev.stopPropagation(); });
-    document.addEventListener("pointerdown", (ev) => { if (!dragMode || dragged || resized || ev.target.closest('#controls button, .modal')) return; setGearState(false); });
-    eyeBtn.addEventListener("click", () => {
-      const isHiding = !eyeBtn.classList.contains('active'); eyeBtn.classList.toggle('active');
-      document.querySelectorAll("#controls button").forEach(el => { if (el.id !== 'eye') { el.style.visibility = isHiding ? 'hidden' : 'visible'; } });
+
+    function setGearState(on) {
+      dragMode = !!on;
+      document.body.classList.toggle("dragMode", dragMode);
+      gearBtn.classList.toggle("active", dragMode);
+      toolsBtn.style.display = dragMode ? "flex" : "none";
+      if (!on) {
+        hideAllGuides();
+        document.getElementById('layoutTemplateModal').style.display = 'none';
+        closeToolsModal();
+      }
+    }
+    gearBtn.addEventListener("click", (ev) => {
+      setGearState(!dragMode);
+      ev.stopPropagation();
     });
-    const layoutTemplates = [ { name: "clean", file: "clean.json" }, { name: "minimal", file: "minimal.json" }, { name: "onehand", file: "onehand.json" }, { name: "joystick", file: "joystick.json" }, { name: "none", file: "none1.json" }, { name: "none", file: "none2.json" }, { name: "none", file: "none3.json" } ];
-    const layoutModal = document.getElementById('layoutTemplateModal'), layoutList = document.getElementById('layoutTemplateList');
+    document.addEventListener("pointerdown", (ev) => {
+      if (!dragMode || dragged || resized || ev.target.closest('#controls button, .modal')) return;
+      setGearState(false);
+    });
+    eyeBtn.addEventListener("click", () => {
+      const isHiding = !eyeBtn.classList.contains('active');
+      eyeBtn.classList.toggle('active');
+      document.querySelectorAll("#controls button").forEach(el => {
+        if (el.id !== 'eye') {
+          el.style.visibility = isHiding ? 'hidden' : 'visible';
+        }
+      });
+    });
+    const layoutTemplates = [{
+      name: "clean",
+      file: "clean.json"
+    }, {
+      name: "minimal",
+      file: "minimal.json"
+    }, {
+      name: "onehand",
+      file: "onehand.json"
+    }, {
+      name: "joystick",
+      file: "joystick.json"
+    }, {
+      name: "none",
+      file: "none1.json"
+    }, {
+      name: "none",
+      file: "none2.json"
+    }, {
+      name: "none",
+      file: "none3.json"
+    }];
+    const layoutModal = document.getElementById('layoutTemplateModal'),
+      layoutList = document.getElementById('layoutTemplateList');
     async function loadTemplate(fileName, templateName) {
       try {
-        const response = await fetch(`layout/${fileName}`); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json(); loadPosFromObject(data); savePos(); showToast(`Layout '${templateName}' loaded!`); console.info(`Layout template loaded: '${templateName}'`); layoutModal.style.display = 'none';
-      } catch (e) { console.error(`Failed to load layout template '${fileName}'.`, e); showToast(`Error loading ${templateName}: Check console (F12).`, 5000); }
+        const response = await fetch(`layout/${fileName}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        loadPosFromObject(data);
+        savePos();
+        showToast(`Layout '${templateName}' loaded!`);
+        console.info(`Layout template loaded: '${templateName}'`);
+        layoutModal.style.display = 'none';
+      } catch (e) {
+        console.error(`Failed to load layout template '${fileName}'.`, e);
+        showToast(`Error loading ${templateName}: Check console (F12).`, 5000);
+      }
     }
+
     function openTemplateModal() {
       layoutList.innerHTML = '';
-      layoutTemplates.forEach(template => { const li = document.createElement('li'); li.textContent = template.name.toUpperCase(); li.onclick = () => loadTemplate(template.file, template.name); layoutList.appendChild(li); });
+      layoutTemplates.forEach(template => {
+        const li = document.createElement('li');
+        li.textContent = template.name.toUpperCase();
+        li.onclick = () => loadTemplate(template.file, template.name);
+        layoutList.appendChild(li);
+      });
       layoutModal.style.display = 'flex';
     }
-    toolsBtn.addEventListener("click", () => { toolsModal.style.display = 'flex'; });
-    let isGameFrozen = false; const freezeBtn = document.getElementById("modalFreezeBtn");
+    toolsBtn.addEventListener("click", () => {
+      toolsModal.style.display = 'flex';
+    });
+    let isGameFrozen = false;
+    const freezeBtn = document.getElementById("modalFreezeBtn");
     freezeBtn.addEventListener("click", () => {
       if (window.pico8_api.pause) {
         window.pico8_api.pause();
@@ -1320,14 +1785,23 @@
       const closeBtn = modal.querySelector('.modal-close');
       if (modal.id === 'toolsModal') {
         closeBtn.addEventListener('click', closeToolsModal);
-        modal.addEventListener('click', (e) => { if (e.target === modal) { closeToolsModal(); } });
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            closeToolsModal();
+          }
+        });
       } else {
-        closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
-        modal.addEventListener('click', (e) => { if (e.target === modal) { modal.style.display = 'none'; } });
+        closeBtn.addEventListener('click', () => {
+          modal.style.display = 'none';
+        });
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.style.display = 'none';
+          }
+        });
       }
     });
 
-    /* --- Final Setup --- */
     function initLayout() {
       if (!loadPos()) {
         applyDefault();
@@ -1342,19 +1816,50 @@
     window.addEventListener('keydown', (ev) => {
       if (ev.key === 'Escape' && dragMode) setGearState(false);
     });
-    
     document.querySelectorAll("#controls button").forEach(el => {
-      el.addEventListener("mousedown", e => { if (dragMode && !e.target.classList.contains('resize-handle')) { dragStart(e, el); e.stopPropagation(); } });
-      el.addEventListener("touchstart", e => { if (dragMode && !e.target.classList.contains('resize-handle')) { dragStart(e, el); e.stopPropagation(); } }, { passive: false });
+      el.addEventListener("mousedown", e => {
+        if (dragMode && !e.target.classList.contains('resize-handle')) {
+          dragStart(e, el);
+          e.stopPropagation();
+        }
+      });
+      el.addEventListener("touchstart", e => {
+        if (dragMode && !e.target.classList.contains('resize-handle')) {
+          dragStart(e, el);
+          e.stopPropagation();
+        }
+      }, {
+        passive: false
+      });
     });
     document.querySelectorAll(".resize-handle").forEach(handle => {
-      handle.addEventListener("mousedown", e => { if (dragMode) resizeStart(e, handle); });
-      handle.addEventListener("touchstart", e => { if (dragMode) resizeStart(e, handle); }, { passive: false });
+      handle.addEventListener("mousedown", e => {
+        if (dragMode) resizeStart(e, handle);
+      });
+      handle.addEventListener("touchstart", e => {
+        if (dragMode) resizeStart(e, handle);
+      }, {
+        passive: false
+      });
     });
-    window.addEventListener("mousemove", e => { if (dragged) dragMove(e); if (resized) resizeMove(e); });
-    window.addEventListener("touchmove", e => { if (dragged) dragMove(e); if (resized) resizeMove(e); }, { passive: false });
-    window.addEventListener("mouseup", () => { dragEnd(); resizeEnd(); });
-    window.addEventListener("touchend", () => { dragEnd(); resizeEnd(); });
+    window.addEventListener("mousemove", e => {
+      if (dragged) dragMove(e);
+      if (resized) resizeMove(e);
+    });
+    window.addEventListener("touchmove", e => {
+      if (dragged) dragMove(e);
+      if (resized) resizeMove(e);
+    }, {
+      passive: false
+    });
+    window.addEventListener("mouseup", () => {
+      dragEnd();
+      resizeEnd();
+    });
+    window.addEventListener("touchend", () => {
+      dragEnd();
+      resizeEnd();
+    });
   </script>
 </body>
 
