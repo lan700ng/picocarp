@@ -643,7 +643,7 @@
         try {
             Module.pico8_fs_sync();
             const fs_base64 = Module.pico8_fs_save();
-            if (fs_base64) {
+            if (fs_base64 && fs_base64.length > 20) {
                 const storageKey = `pico8_cartdata_${cartName}`;
                 localStorage.setItem(storageKey, fs_base64);
             }
@@ -659,7 +659,7 @@
         const storageKey = `pico8_cartdata_${cartName}`;
         const fs_base64 = localStorage.getItem(storageKey);
 
-        if (!fs_base64) {
+        if (!fs_base64 || fs_base64.length === 0) {
             return;
         }
 
@@ -668,8 +668,8 @@
             try {
                 Module.pico8_fs_load(fs_base64);
             } catch (e) {
-                console.error("Failed to restore cart data. It might be corrupted.", e);
-                showToast("SAVE DATA CORRUPTED, RESETTING", 4000);
+                console.error("Cart data corrupted. Purging and resetting.", e);
+                showToast("SAVE DATA CORRUPTED, RESETTING CART", 4000);
                 localStorage.removeItem(storageKey);
             }
         }
@@ -720,8 +720,6 @@
     function startGameSequence() {
       initialBoot().catch(err => console.error("Initial boot failed.", err));
       document.getElementById('controls').style.opacity = 1;
-      
-      setInterval(saveCartData, 5000);
     }
 
     function setAppHeight() {
